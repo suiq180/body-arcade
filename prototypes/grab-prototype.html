@@ -1,0 +1,540 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>손으로 장보기</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fff4e0; font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif; color: #3b2a1a; user-select: none; }
+  canvas#game { position: fixed; inset: 0; display: block; }
+  #hud { position: fixed; top: 12px; left: 16px; display: flex; gap: 10px; z-index: 5; pointer-events: none; }
+  .chip { background: #fff; border: 2px solid #3b2a1a; border-radius: 999px; padding: 6px 14px; font-weight: 800; font-size: 18px; box-shadow: 0 3px 0 #3b2a1a; }
+  #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; background: rgba(255, 244, 224, .82); }
+  #overlay.hidden { display: none; }
+  .panel { background: #fff; border: 3px solid #3b2a1a; border-radius: 24px; padding: 28px 32px; max-width: 560px; width: calc(100% - 32px); text-align: center; box-shadow: 0 8px 0 #3b2a1a; }
+  .panel h1 { margin: 0 0 6px; font-size: 40px; }
+  .panel h2 { margin: 0 0 8px; font-size: 30px; }
+  .panel p { margin: 6px 0; line-height: 1.55; font-size: 16px; }
+  .panel ul { text-align: left; margin: 12px auto; padding-left: 20px; max-width: 420px; line-height: 1.7; }
+  .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 18px; }
+  button { font: inherit; font-size: 20px; font-weight: 800; padding: 14px 26px; border-radius: 16px; border: 3px solid #3b2a1a; background: #ffd166; color: #3b2a1a; cursor: pointer; box-shadow: 0 5px 0 #3b2a1a; transition: transform .08s; }
+  button.alt { background: #e9f5ff; }
+  button:hover, button.hover { transform: translateY(-3px) scale(1.04); background: #ffb703; }
+  button.alt:hover, button.alt.hover { background: #bde0fe; }
+  .meter { height: 18px; border: 2px solid #3b2a1a; border-radius: 999px; overflow: hidden; margin: 10px auto; max-width: 360px; background: #f1f1f1; }
+  .meter > div { height: 100%; width: 0; background: #06d6a0; transition: width .05s; }
+  .status { font-weight: 800; font-size: 18px; min-height: 26px; }
+  .small { font-size: 13px; opacity: .7; }
+  #cursor { position: fixed; left: 0; top: 0; width: 44px; height: 44px; margin: -22px 0 0 -22px; border-radius: 50%; border: 4px solid #ef476f; background: rgba(239, 71, 111, .15); z-index: 20; pointer-events: none; display: none; transition: width .08s, height .08s, margin .08s, opacity .2s; }
+  #cursor.pinch { width: 28px; height: 28px; margin: -14px 0 0 -14px; background: #ef476f; }
+  #cursor.lost { opacity: .25; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud" style="display:none">
+  <div class="chip" id="hudLeft">남은 물건 0</div>
+  <div class="chip" id="hudTime">⏱ 180</div>
+</div>
+<div id="cursor"></div>
+<div id="overlay"><div class="panel" id="panel"></div></div>
+
+<script type="module">
+// ------------------------------------------------------------
+// 설정
+// ------------------------------------------------------------
+const TYPES = [
+  { e: '🍎', c: '#ffadad' }, { e: '🥕', c: '#ffd6a5' }, { e: '🧀', c: '#fdffb6' },
+  { e: '🥦', c: '#caffbf' }, { e: '🐟', c: '#9bf6ff' }, { e: '🍇', c: '#d0bfff' },
+];
+const SETS_PER_TYPE = 3;          // 종류당 3개 x 3세트 = 54개
+const SLOT_COUNT = 7;
+const TIME_LIMIT = 180;
+const PINCH_ON = 0.30;            // 엄지-검지 거리 / 손 크기 비율 (히스테리시스)
+const PINCH_OFF = 0.45;
+const GRAB_ASSIST = 2.4;          // 보정: 반지름의 몇 배 거리까지 자동 선택할지
+
+// ------------------------------------------------------------
+// 기본 요소
+// ------------------------------------------------------------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const panel = document.getElementById('panel');
+const cursorEl = document.getElementById('cursor');
+const hud = document.getElementById('hud');
+const hudLeft = document.getElementById('hudLeft');
+const hudTime = document.getElementById('hudTime');
+
+let W = 0, H = 0, R = 30, DPR = 1;
+let bin = {}, tray = {};
+function layout() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const slot = Math.min(84, (W - 48) / SLOT_COUNT - 8);
+  tray = { slot, gap: 8, h: slot + 28 };
+  tray.w = SLOT_COUNT * slot + (SLOT_COUNT - 1) * tray.gap + 28;
+  tray.x = (W - tray.w) / 2;
+  tray.y = H - tray.h - 16;
+  bin = { l: Math.max(16, W * 0.08), r: W - Math.max(16, W * 0.08), b: tray.y - 40 };
+  const oldR = R;
+  R = Math.max(14, Math.min(34, Math.sqrt(((bin.r - bin.l) * (bin.b - 60)) / (TYPES.length * SETS_PER_TYPE * 3)) * 0.42));
+  if (typeof items !== 'undefined') for (const it of items) it.r *= R / oldR;
+}
+window.addEventListener('resize', layout);
+
+// ------------------------------------------------------------
+// 사운드 (WebAudio로 간단히 합성)
+// ------------------------------------------------------------
+let audio = null;
+function ensureAudio() { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); }
+function tone(freq, dur, type = 'sine', vol = 0.15, slide = 0, delay = 0) {
+  if (!audio) return;
+  const t = audio.currentTime + delay;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur);
+}
+const sfx = {
+  grab: () => tone(520, 0.09, 'triangle', 0.18, 1.6),
+  drop: () => tone(300, 0.12, 'sine', 0.15, 0.6),
+  slot: () => tone(660, 0.08, 'square', 0.07, 1.2),
+  match: () => { tone(784, 0.12, 'triangle', 0.15); tone(988, 0.12, 'triangle', 0.15, 1, 0.08); tone(1318, 0.2, 'triangle', 0.15, 1, 0.16); },
+  win: () => [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.25, 'triangle', 0.15, 1, i * 0.12)),
+  lose: () => [392, 330, 262].forEach((f, i) => tone(f, 0.3, 'sawtooth', 0.08, 1, i * 0.18)),
+};
+
+// ------------------------------------------------------------
+// 입력: 손 추적 / 마우스 공통 인터페이스
+// ------------------------------------------------------------
+const input = { mode: null, x: W / 2, y: H / 2, pinch: false, visible: false, ratio: 1, lastSeen: 0 };
+let prevPinch = false;
+
+window.addEventListener('mousemove', e => { if (input.mode === 'mouse') { input.x = e.clientX; input.y = e.clientY; input.visible = true; } });
+// 한 프레임 안에 눌렀다 떼도 놓치지 않도록 이벤트를 기억해 둠
+window.addEventListener('mousedown', e => { if (input.mode === 'mouse' && e.target === canvas) { input.x = e.clientX; input.y = e.clientY; input.pinch = true; input.pressQ = { x: e.clientX, y: e.clientY }; } });
+window.addEventListener('mouseup', e => { if (input.mode === 'mouse' && input.pinch) { input.x = e.clientX; input.y = e.clientY; input.pinch = false; input.releaseQ = true; } });
+
+let video = null, landmarker = null, lastVideoTime = -1, landmarks = null;
+async function startHandTracking() {
+  showPanel(`<h2>손 추적 준비 중…</h2><p>카메라 권한을 허용해 주세요.<br>모델을 내려받는 데 몇 초 걸릴 수 있어요.</p>`);
+  try {
+    const vision = await import('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14');
+    const fileset = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+    const opts = (delegate) => ({
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task', delegate },
+      runningMode: 'VIDEO', numHands: 1,
+      minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
+    });
+    try { landmarker = await vision.HandLandmarker.createFromOptions(fileset, opts('GPU')); }
+    catch { landmarker = await vision.HandLandmarker.createFromOptions(fileset, opts('CPU')); }
+
+    video = document.createElement('video');
+    video.playsInline = true; video.muted = true;
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' } });
+    await video.play();
+    input.mode = 'hand';
+    cursorEl.style.display = 'block';
+    showTestPanel();
+  } catch (err) {
+    console.error(err);
+    const name = err && err.name;
+    const help = name === 'NotAllowedError'
+      ? '카메라 사용이 차단되었어요. 주소창 왼쪽의 🔒(또는 카메라) 아이콘을 눌러 카메라를 <b>허용</b>으로 바꾼 뒤 다시 시도해 주세요. 앱 안의 미리보기 창에서는 카메라가 막혀 있을 수 있으니 Chrome이나 Edge에서 열어 주세요.'
+      : name === 'NotFoundError' ? '연결된 카메라를 찾지 못했어요. 웹캠이 연결되어 있는지 확인해 주세요.'
+      : name === 'NotReadableError' ? '다른 프로그램(줌, 팀즈 등)이 카메라를 쓰고 있어요. 그 프로그램을 닫고 다시 시도해 주세요.'
+      : '카메라 권한과 인터넷 연결을 확인해 주세요. 파일을 직접 열었다면 로컬 서버(localhost)로 열어야 해요.';
+    showPanel(`<h2>손 추적을 시작하지 못했어요</h2>
+      <p>${String(err && err.message || err)}</p>
+      <p class="small">${help}</p>
+      <div class="btns"><button data-act="hand">다시 시도</button><button class="alt" data-act="mouse">마우스로 하기</button></div>`);
+  }
+}
+
+function updateHand(now) {
+  if (!landmarker || !video || video.readyState < 2) return;
+  if (video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+  const res = landmarker.detectForVideo(video, now);
+  const lm = res.landmarks && res.landmarks[0];
+  landmarks = lm || null;
+  if (!lm) {
+    // 잠깐 놓쳤을 때는 상태 유지, 0.4초 이상이면 놓은 것으로 처리
+    if (now - input.lastSeen > 400) { input.visible = false; input.pinch = false; }
+    return;
+  }
+  input.lastSeen = now; input.visible = true;
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const handSize = d(lm[0], lm[9]) || 0.1;
+  const ratio = d(lm[4], lm[8]) / handSize;
+  input.ratio = ratio;
+  if (!input.pinch && ratio < PINCH_ON) input.pinch = true;
+  else if (input.pinch && ratio > PINCH_OFF) input.pinch = false;
+
+  // 엄지·검지 중간점 → 화면 좌표 (거울 반전 + 가장자리까지 닿도록 확대)
+  const mx = 1 - (lm[4].x + lm[8].x) / 2, my = (lm[4].y + lm[8].y) / 2;
+  const map = (v, a, b) => Math.min(1, Math.max(0, (v - a) / (b - a)));
+  const tx = map(mx, 0.12, 0.88) * W, ty = map(my, 0.1, 0.8) * H;
+  const k = 0.45; // 떨림 줄이기
+  input.x += (tx - input.x) * k; input.y += (ty - input.y) * k;
+}
+
+// ------------------------------------------------------------
+// 화면(오버레이) 관리
+// ------------------------------------------------------------
+function showPanel(html) { panel.innerHTML = html; overlay.classList.remove('hidden'); }
+function hidePanel() { overlay.classList.add('hidden'); }
+
+function showMenu() {
+  state = 'menu';
+  showPanel(`<h1>🛒 손으로 장보기</h1>
+    <p>쌓여 있는 장바구니 물건을 <b>손가락으로 집어</b> 아래 계산대에 올려요.</p>
+    <ul>
+      <li>👌 <b>엄지와 검지를 붙이면</b> 집기, <b>벌리면</b> 놓기</li>
+      <li>계산대(7칸)에 <b>같은 물건 3개</b>가 모이면 사라져요</li>
+      <li>7칸이 꽉 차거나 시간이 다 되면 끝!</li>
+    </ul>
+    <div class="btns"><button data-act="hand">✋ 웹캠 손으로 시작</button><button class="alt" data-act="mouse">🖱 마우스로 하기</button></div>
+    <p class="small">웹캠 모드는 밝은 곳에서, 손바닥이 카메라를 보게 해 주세요.</p>`);
+}
+
+// 1단계: 입력부터 검증하는 테스트 화면
+let testHold = 0;
+function showTestPanel() {
+  state = 'test'; testHold = 0;
+  showPanel(`<h2>✋ 입력 테스트</h2>
+    <p>손을 움직여 빨간 커서가 따라오는지 확인하고,<br><b>엄지와 검지를 붙였다 떼어</b> 보세요.</p>
+    <div class="meter"><div id="pinchMeter"></div></div>
+    <p class="status" id="testStatus">손을 카메라에 보여 주세요</p>
+    <div class="btns"><button data-act="start">집어서 게임 시작</button></div>
+    <p class="small">버튼 위에서 손가락을 붙이면 눌러져요. 인식이 불안정하면 조명을 밝게 하거나 손을 카메라에서 50cm 정도 떨어뜨려 보세요.</p>`);
+}
+function updateTestPanel() {
+  const meter = document.getElementById('pinchMeter'), st = document.getElementById('testStatus');
+  if (!meter) return;
+  const closeness = Math.max(0, Math.min(1, (0.9 - input.ratio) / (0.9 - PINCH_ON)));
+  meter.style.width = (input.visible ? closeness * 100 : 0) + '%';
+  meter.style.background = input.pinch ? '#ef476f' : '#06d6a0';
+  st.textContent = !input.visible ? '손을 카메라에 보여 주세요' : input.pinch ? '👌 집는 중!' : '✋ 손 인식됨 — 손가락을 붙여 보세요';
+}
+
+function showResult(win) {
+  state = 'over';
+  hud.style.display = 'none';
+  const used = Math.round(TIME_LIMIT - timeLeft);
+  showPanel(win
+    ? `<h2>🎉 장보기 완료!</h2><p>${used}초 만에 모든 물건을 계산했어요.</p><div class="btns"><button data-act="again">다시 하기</button><button class="alt" data-act="menu">처음으로</button></div>`
+    : `<h2>${timeLeft <= 0 ? '⏰ 시간 초과!' : '😵 계산대가 꽉 찼어요'}</h2><p>남은 물건 ${items.length + slots.length}개</p><div class="btns"><button data-act="again">다시 하기</button><button class="alt" data-act="menu">처음으로</button></div>`);
+  win ? sfx.win() : sfx.lose();
+}
+
+overlay.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  ensureAudio();
+  const act = b.dataset.act;
+  if (act === 'hand') startHandTracking();
+  else if (act === 'mouse') { input.mode = 'mouse'; cursorEl.style.display = 'none'; startGame(); }
+  else if (act === 'start' || act === 'again') startGame();
+  else if (act === 'menu') showMenu();
+});
+
+// ------------------------------------------------------------
+// 게임 상태
+// ------------------------------------------------------------
+let state = 'menu';
+let items = [], slots = [], vanishing = [], particles = [], floaters = [];
+let held = null, hover = null, timeLeft = TIME_LIMIT;
+
+function startGame() {
+  hidePanel(); layout();
+  items = []; slots = []; vanishing = []; particles = []; floaters = [];
+  held = null; hover = null; timeLeft = TIME_LIMIT;
+  const pool = [];
+  TYPES.forEach((_, t) => { for (let i = 0; i < SETS_PER_TYPE * 3; i++) pool.push(t); });
+  pool.sort(() => Math.random() - 0.5);
+  pool.forEach((t, i) => items.push({
+    t, r: R * (0.92 + Math.random() * 0.16),
+    x: bin.l + R + Math.random() * (bin.r - bin.l - 2 * R),
+    y: -R - i * R * 0.9 - Math.random() * 40,
+    vx: (Math.random() - 0.5) * 60, vy: 0, rot: Math.random() * 6, scale: 1,
+  }));
+  hud.style.display = 'flex';
+  state = 'play';
+}
+
+// 계산대(슬롯)에 넣기 — 같은 종류 옆에 끼워 넣고 3개면 제거
+function slotPos(i) {
+  return { x: tray.x + 14 + i * (tray.slot + tray.gap) + tray.slot / 2, y: tray.y + tray.h / 2 };
+}
+function addToSlot(it) {
+  items.splice(items.indexOf(it), 1);
+  let idx = slots.length;
+  for (let i = slots.length - 1; i >= 0; i--) if (slots[i].t === it.t) { idx = i + 1; break; }
+  slots.splice(idx, 0, { t: it.t, x: it.x, y: it.y, rot: it.rot });
+  sfx.slot();
+  const same = slots.filter(s => s.t === it.t);
+  if (same.length >= 3) {
+    const three = same.slice(0, 3);
+    slots = slots.filter(s => !three.includes(s));
+    const c = three.reduce((a, s) => ({ x: a.x + s.x / 3, y: a.y + s.y / 3 }), { x: 0, y: 0 });
+    three.forEach(s => vanishing.push({ ...s, cx: c.x, cy: c.y, life: 0 }));
+    setTimeout(() => { sfx.match(); burst(c.x, c.y - 10, TYPES[it.t].c, 30); floaters.push({ x: c.x, y: c.y - 40, text: '깔끔!', life: 0 }); }, 260);
+  }
+  if (slots.length >= SLOT_COUNT) setTimeout(() => state === 'play' && showResult(false), 300);
+  else if (items.length === 0 && slots.length === 0) setTimeout(() => state === 'play' && showResult(true), 700);
+}
+
+function burst(x, y, color, n) {
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, s = 120 + Math.random() * 320;
+    particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, life: 0, max: 0.5 + Math.random() * 0.4, color, size: 3 + Math.random() * 5 });
+  }
+}
+
+// ------------------------------------------------------------
+// 집기 / 놓기
+// ------------------------------------------------------------
+function findHover(cx = input.x, cy = input.y) {
+  // 보정: 커서 반경 안에서 가장 가까운 물건 (위에 있는 물건 = 배열 뒤쪽을 약간 우대)
+  let best = null, bestD = Infinity;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const d = Math.hypot(it.x - cx, it.y - cy) - i * 0.05;
+    if (d < it.r * GRAB_ASSIST && d < bestD) { best = it; bestD = d; }
+  }
+  return best;
+}
+const inTray = (x, y) => y > tray.y - 50 && x > tray.x - 30 && x < tray.x + tray.w + 30;
+
+let lastCursor = { x: 0, y: 0 }, cursorVel = { x: 0, y: 0 };
+function handleGrab(dt) {
+  cursorVel.x = (input.x - lastCursor.x) / Math.max(dt, 1e-3);
+  cursorVel.y = (input.y - lastCursor.y) / Math.max(dt, 1e-3);
+  lastCursor = { x: input.x, y: input.y };
+
+  const pressAt = input.pressQ;
+  const pressed = !!pressAt || (input.pinch && !prevPinch);
+  const released = input.releaseQ || (!input.pinch && prevPinch);
+  input.pressQ = input.releaseQ = false;
+  hover = held ? null : pressAt ? findHover(pressAt.x, pressAt.y) : (input.visible ? findHover() : null);
+
+  if (pressed && hover) {
+    held = hover; held.scale = 1.25;
+    items.splice(items.indexOf(held), 1); items.push(held); // 맨 위로 그리기
+    sfx.grab(); burst(held.x, held.y, '#ffffff', 8);
+  }
+  if (held) {
+    const follow = released ? 1 : 0.5;
+    held.x += (input.x - held.x) * follow;
+    held.y += (input.y - held.y) * follow;
+    held.vx = cursorVel.x * 0.6; held.vy = cursorVel.y * 0.6;
+    held.vx = Math.max(-900, Math.min(900, held.vx)); held.vy = Math.max(-900, Math.min(900, held.vy));
+    if (released || !input.visible) {
+      const it = held; held = null; it.scale = 1;
+      if (inTray(it.x, it.y) && slots.length < SLOT_COUNT) addToSlot(it);
+      else sfx.drop();
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// 물리 (원끼리 충돌 + 중력 + 벽)
+// ------------------------------------------------------------
+const G = 1600;
+function physics(dt) {
+  const sub = 3, h = dt / sub;
+  for (let s = 0; s < sub; s++) {
+    for (const it of items) {
+      if (it === held) continue;
+      it.vy += G * h;
+      it.vx *= 0.998; it.vy *= 0.998;
+      it.x += it.vx * h; it.y += it.vy * h;
+      if (it.x < bin.l + it.r) { it.x = bin.l + it.r; it.vx = Math.abs(it.vx) * 0.4; }
+      if (it.x > bin.r - it.r) { it.x = bin.r - it.r; it.vx = -Math.abs(it.vx) * 0.4; }
+      if (it.y > bin.b - it.r) { it.y = bin.b - it.r; if (it.vy > 0) it.vy *= -0.25; it.vx *= 0.9; }
+      it.rot += it.vx * h / it.r;
+    }
+    for (let i = 0; i < items.length; i++) {
+      const a = items[i];
+      for (let j = i + 1; j < items.length; j++) {
+        const b = items[j];
+        const dx = b.x - a.x, dy = b.y - a.y, min = a.r + b.r;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= min * min || d2 === 0) continue;
+        const d = Math.sqrt(d2), nx = dx / d, ny = dy / d, over = min - d;
+        const ma = a === held ? 0 : 1, mb = b === held ? 0 : 1;
+        if (ma + mb === 0) continue;
+        a.x -= nx * over * ma / (ma + mb); a.y -= ny * over * ma / (ma + mb);
+        b.x += nx * over * mb / (ma + mb); b.y += ny * over * mb / (ma + mb);
+        const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
+        if (rv < 0) {
+          const imp = -(1.2) * rv / (ma + mb);
+          a.vx -= imp * nx * ma; a.vy -= imp * ny * ma;
+          b.vx += imp * nx * mb; b.vy += imp * ny * mb;
+        }
+      }
+    }
+  }
+}
+
+// ------------------------------------------------------------
+// 그리기
+// ------------------------------------------------------------
+function drawItem(t, x, y, r, rot = 0, scale = 1, glow = false, alpha = 1) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, y); ctx.scale(scale, scale);
+  if (glow) { ctx.shadowColor = '#ef476f'; ctx.shadowBlur = 22; }
+  ctx.fillStyle = TYPES[t].c;
+  ctx.strokeStyle = glow ? '#ef476f' : '#3b2a1a';
+  ctx.lineWidth = glow ? 4 : 2.5;
+  ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.rotate(rot * 0.3);
+  ctx.font = `${r * 1.25}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(TYPES[t].e, 0, r * 0.08);
+  ctx.restore();
+}
+
+function roundRect(x, y, w, h, r) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); }
+
+function draw(now) {
+  ctx.clearRect(0, 0, W, H);
+  // 배경 줄무늬
+  ctx.fillStyle = '#fff4e0'; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(255, 209, 102, .18)';
+  for (let x = -H; x < W; x += 60) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x + 30, 0); ctx.lineTo(x + 30 + H, H); ctx.lineTo(x + H, H); ctx.fill(); }
+
+  if (state === 'play' || state === 'over') {
+    // 장바구니(물건 더미 영역)
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.strokeStyle = '#3b2a1a'; ctx.lineWidth = 3;
+    roundRect(bin.l - 8, 60, bin.r - bin.l + 16, bin.b - 52, 20); ctx.fill(); ctx.stroke();
+
+    // 계산대(슬롯 트레이)
+    const hot = held && inTray(held.x, held.y);
+    ctx.fillStyle = hot ? '#ffd166' : '#8d5a2b';
+    roundRect(tray.x, tray.y, tray.w, tray.h, 18); ctx.fill(); ctx.stroke();
+    for (let i = 0; i < SLOT_COUNT; i++) {
+      const p = slotPos(i);
+      ctx.fillStyle = i >= SLOT_COUNT - 2 && slots.length >= SLOT_COUNT - 2 ? '#ffe0e6' : '#fff8ec';
+      roundRect(p.x - tray.slot / 2, p.y - tray.slot / 2, tray.slot, tray.slot, 12); ctx.fill(); ctx.stroke();
+    }
+    if (held) {
+      ctx.fillStyle = '#3b2a1a'; ctx.font = 'bold 16px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(hot ? '여기서 손가락을 벌리세요!' : '⬇ 계산대로 옮기세요', W / 2, tray.y - 14);
+    }
+
+    for (const it of items) if (it !== held) drawItem(it.t, it.x, it.y, it.r, it.rot, 1, it === hover);
+    for (let i = 0; i < slots.length; i++) {
+      const s = slots[i], p = slotPos(i);
+      drawItem(s.t, s.x, s.y, tray.slot * 0.4, 0);
+    }
+    for (const v of vanishing) {
+      const k = Math.min(1, v.life / 0.26);
+      drawItem(v.t, v.x + (v.cx - v.x) * k, v.y + (v.cy - v.y) * k, tray.slot * 0.4, 0, 1 + k * 0.3, false, 1 - Math.max(0, (v.life - 0.2) / 0.1));
+    }
+    if (held) drawItem(held.t, held.x, held.y, held.r, held.rot, held.scale, true);
+  }
+
+  for (const p of particles) {
+    ctx.globalAlpha = 1 - p.life / p.max; ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  for (const f of floaters) {
+    ctx.globalAlpha = 1 - f.life / 0.8;
+    ctx.fillStyle = '#ef476f'; ctx.font = 'bold 28px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(f.text, f.x, f.y - f.life * 60);
+  }
+  ctx.globalAlpha = 1;
+
+  drawCamera();
+}
+
+// 오른쪽 위 카메라 미리보기 + 손가락 관절
+function drawCamera() {
+  if (input.mode !== 'hand' || !video) return;
+  const w = Math.min(220, W * 0.28), h = w * 0.75, x = W - w - 14, y = 14;
+  ctx.save();
+  roundRect(x, y, w, h, 12); ctx.clip();
+  ctx.translate(x + w, y); ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, w, h);
+  if (landmarks) {
+    ctx.fillStyle = input.pinch ? '#ef476f' : '#06d6a0';
+    for (const p of landmarks) { ctx.beginPath(); ctx.arc(p.x * w, p.y * h, 2.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(landmarks[4].x * w, landmarks[4].y * h); ctx.lineTo(landmarks[8].x * w, landmarks[8].y * h); ctx.stroke();
+  }
+  ctx.restore();
+  ctx.strokeStyle = '#3b2a1a'; ctx.lineWidth = 3; roundRect(x, y, w, h, 12); ctx.stroke();
+  if (!input.visible) {
+    ctx.fillStyle = '#ef476f'; ctx.font = 'bold 14px "Malgun Gothic", sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('손이 보이지 않아요', x + w / 2, y + h + 20);
+  }
+}
+
+// ------------------------------------------------------------
+// 오버레이 버튼을 손으로 누르기 (집기 = 클릭)
+// ------------------------------------------------------------
+let hoverBtn = null;
+function handleOverlayPinch() {
+  if (input.mode !== 'hand' || overlay.classList.contains('hidden')) { if (hoverBtn) hoverBtn.classList.remove('hover'); hoverBtn = null; return; }
+  const el = input.visible ? document.elementFromPoint(input.x, input.y) : null;
+  const btn = el && el.closest('button');
+  if (btn !== hoverBtn) { if (hoverBtn) hoverBtn.classList.remove('hover'); if (btn) btn.classList.add('hover'); hoverBtn = btn; }
+  if (input.pinch && !prevPinch && btn) { sfx.grab(); btn.click(); }
+}
+
+// ------------------------------------------------------------
+// 메인 루프
+// ------------------------------------------------------------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+  if (input.mode === 'hand') updateHand(now);
+
+  cursorEl.style.transform = `translate(${input.x}px, ${input.y}px)`;
+  cursorEl.classList.toggle('pinch', input.pinch);
+  cursorEl.classList.toggle('lost', !input.visible);
+
+  if (state === 'test') updateTestPanel();
+  handleOverlayPinch();
+
+  if (state === 'play') {
+    handleGrab(dt);
+    physics(dt);
+    timeLeft -= dt;
+    hudLeft.textContent = `남은 물건 ${items.length + slots.length}`;
+    hudTime.textContent = `⏱ ${Math.max(0, Math.ceil(timeLeft))}`;
+    hudTime.style.color = timeLeft < 30 ? '#ef476f' : '';
+    if (timeLeft <= 0) showResult(false);
+  } else if (state === 'over') {
+    physics(dt);
+  }
+  for (let i = 0; i < slots.length; i++) {
+    const p = slotPos(i), s = slots[i];
+    s.x += (p.x - s.x) * Math.min(1, dt * 14); s.y += (p.y - s.y) * Math.min(1, dt * 14);
+  }
+  vanishing.forEach(v => v.life += dt); vanishing = vanishing.filter(v => v.life < 0.3);
+  particles.forEach(p => { p.life += dt; p.vy += 600 * dt; p.x += p.vx * dt; p.y += p.vy * dt; });
+  particles = particles.filter(p => p.life < p.max);
+  floaters.forEach(f => f.life += dt); floaters = floaters.filter(f => f.life < 0.8);
+
+  prevPinch = input.pinch;
+  draw(now);
+  requestAnimationFrame(frame);
+}
+
+layout();
+showMenu();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

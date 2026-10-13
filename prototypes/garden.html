@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#cdeccd">
+<title>숨결 화분</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #cdeccd; font-family: "Pretendard", "Malgun Gothic", system-ui, sans-serif; color: #2d3a2e; user-select: none; -webkit-user-select: none; touch-action: none; }
+  canvas { position: fixed; inset: 0; display: block; }
+  .top { position: fixed; top: 0; left: 0; right: 0; padding: 12px 14px; display: flex; gap: 8px; align-items: center; z-index: 5; }
+  .stat { flex: 1; background: #fff; border: 2px solid #2d3a2e; border-radius: 14px; padding: 6px 10px; box-shadow: 0 3px 0 #2d3a2e; min-width: 0; }
+  .stat .lbl { font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; }
+  .bar { height: 10px; border-radius: 99px; background: #e8e8e8; overflow: hidden; margin-top: 4px; }
+  .bar > i { display: block; height: 100%; width: 0; background: #4cc9f0; transition: width .15s; }
+  .iconbtn { flex: none; width: 46px; height: 46px; border-radius: 14px; border: 2px solid #2d3a2e; background: #fff; font-size: 22px; box-shadow: 0 3px 0 #2d3a2e; cursor: pointer; }
+  .card { position: fixed; left: 12px; right: 12px; bottom: 12px; background: #fff; border: 2px solid #2d3a2e; border-radius: 20px; padding: 14px 16px; box-shadow: 0 4px 0 #2d3a2e; z-index: 5; max-width: 520px; margin: 0 auto; }
+  .card h3 { margin: 0 0 2px; font-size: 18px; }
+  .card p { margin: 0 0 8px; font-size: 14px; line-height: 1.45; }
+  .card .bar { height: 16px; border: 2px solid #2d3a2e; }
+  .gauges { display: grid; gap: 6px; }
+  .glabel { font-size: 12px; font-weight: 700; display: flex; justify-content: space-between; }
+  .demo { display: none; gap: 8px; margin-top: 10px; }
+  .demo.on { display: flex; }
+  button.big { font: inherit; font-weight: 800; font-size: 16px; border: 2px solid #2d3a2e; border-radius: 14px; padding: 12px 10px; background: #ffd6e0; box-shadow: 0 3px 0 #2d3a2e; cursor: pointer; flex: 1; touch-action: none; }
+  button.big:active, button.big.held { transform: translateY(2px); box-shadow: 0 1px 0 #2d3a2e; background: #ffb3c6; }
+  button.main { background: #95d5b2; font-size: 18px; width: 100%; margin-top: 6px; }
+  .overlay { position: fixed; inset: 0; z-index: 20; background: rgba(205, 236, 205, .9); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .overlay.hidden { display: none; }
+  .panel { background: #fff; border: 3px solid #2d3a2e; border-radius: 24px; padding: 22px 20px; width: 100%; max-width: 420px; box-shadow: 0 6px 0 #2d3a2e; text-align: center; max-height: 100%; overflow: auto; }
+  .panel h1 { margin: 0 0 4px; font-size: 32px; }
+  .panel h2 { margin: 0 0 10px; }
+  .panel ul { text-align: left; padding-left: 18px; line-height: 1.7; margin: 10px 0; font-size: 15px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin: 10px 0; }
+  .chip { font-size: 13px; padding: 4px 10px; border-radius: 99px; border: 2px solid #2d3a2e; background: #f1f1f1; }
+  .chip.ok { background: #b7efc5; } .chip.no { background: #ffd6d6; }
+  .small { font-size: 12px; opacity: .7; line-height: 1.5; }
+  .dex { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 12px 0; }
+  .dex div { border: 2px solid #2d3a2e; border-radius: 14px; padding: 10px 4px; background: #f8fff8; }
+  .dex .e { font-size: 38px; line-height: 1.1; }
+  .dex .n { font-size: 13px; font-weight: 700; }
+  .dex .c { font-size: 11px; opacity: .7; }
+  .dex .locked { background: #eee; } .dex .locked .e { filter: grayscale(1) brightness(.3); }
+  .toast { position: fixed; left: 50%; top: 84px; transform: translateX(-50%); background: #2d3a2e; color: #fff; padding: 8px 14px; border-radius: 99px; font-size: 14px; font-weight: 700; z-index: 30; opacity: 0; transition: opacity .25s; pointer-events: none; white-space: nowrap; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div class="top">
+  <div class="stat">
+    <div class="lbl"><span>⚡ 체력</span><span id="stTxt">0</span></div>
+    <div class="bar"><i id="stBar" style="background:#ffb703"></i></div>
+  </div>
+  <div class="stat" style="flex:.7">
+    <div class="lbl"><span>👟 걸음</span><span id="stepTxt">0</span></div>
+    <div class="lbl" style="font-weight:500;opacity:.7"><span>🌸 수확</span><span id="harvTxt">0</span></div>
+  </div>
+  <button class="iconbtn" id="dexBtn" aria-label="도감">📖</button>
+  <button class="iconbtn" id="demoBtn" aria-label="시연 모드">🎮</button>
+</div>
+
+<div class="card" id="card">
+  <h3 id="taskTitle">씨앗</h3>
+  <p id="taskDesc"></p>
+  <div class="gauges" id="gauges"></div>
+  <button class="big main" id="actionBtn" style="display:none"></button>
+  <div class="demo" id="demo">
+    <button class="big" id="dPour">🫗 기울이기</button>
+    <button class="big" id="dBlow">💨 후 불기</button>
+    <button class="big" id="dStep">👟 걷기</button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay"><div class="panel" id="panel"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ------------------------------------------------------------
+// 설정
+// ------------------------------------------------------------
+const FLOWERS = [
+  { name: '해바라기', e: '🌻', c: '#ffc300', w: 3 },
+  { name: '튤립',     e: '🌷', c: '#ff5d8f', w: 3 },
+  { name: '데이지',   e: '🌼', c: '#ffe066', w: 3 },
+  { name: '벚꽃',     e: '🌸', c: '#ffafcc', w: 2 },
+  { name: '장미',     e: '🌹', c: '#e63946', w: 2 },
+  { name: '히비스커스', e: '🌺', c: '#f72585', w: 1 },   // 희귀
+];
+const STAGES = ['씨앗', '새싹', '꽃봉오리', '꽃'];
+const TILT_START = 20, TILT_FULL = 65;   // 폰 좌우 기울기(도): 이 이상 기울이면 물이 나옴
+const WATER_RATE = 22;                    // 최대로 기울였을 때 초당 물 게이지
+const WATER_COST = 6;                     // 최대로 기울였을 때 초당 체력 소모
+const BLOW_RATE = 28;                     // 최대로 불었을 때 초당 꽃가루 게이지
+const SUN_RATE = 9;                       // 초당 햇빛 게이지 (조도 센서 없을 때 자동)
+const STEP_GAIN = 2;                      // 한 걸음(흔들기)당 체력
+const MAX_STAMINA = 100;
+
+// ------------------------------------------------------------
+// 저장 상태 (이 기기 브라우저에만 저장)
+// ------------------------------------------------------------
+const SAVE_KEY = 'breath-garden-v1';
+let save = load();
+function freshPlant() { return { kind: pickKind(), stage: 0, water: 0, sun: 0, pollen: 0 }; }
+function pickKind() {
+  const total = FLOWERS.reduce((a, f) => a + f.w, 0);
+  let r = Math.random() * total;
+  for (let i = 0; i < FLOWERS.length; i++) { r -= FLOWERS[i].w; if (r < 0) return i; }
+  return 0;
+}
+function load() {
+  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.plant) return s; } catch {}
+  return { stamina: 60, steps: 0, harvests: 0, dex: {}, plant: freshPlant() };
+}
+let saveTimer = 0;
+function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch {} }
+
+// ------------------------------------------------------------
+// 센서 입력
+// ------------------------------------------------------------
+const sensor = {
+  tilt: 0, tiltOk: false,          // 좌우 기울기 (도)
+  blow: 0, micOk: false,           // 0~1 불기 세기
+  motionOk: false, lightOk: false, lux: null,
+  demoTilt: false, demoBlow: false,
+};
+
+function onOrientation(e) {
+  if (e.gamma == null) return;
+  sensor.tiltOk = true;
+  // 화면이 가로로 돌아가 있으면 beta를 좌우 기울기로 사용
+  const ang = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
+  let t = e.gamma;
+  if (ang === 90) t = -e.beta; else if (ang === -90 || ang === 270) t = e.beta;
+  sensor.tilt += (t - sensor.tilt) * 0.3;
+}
+
+// 걸음(흔들기) 감지: 중력 제거 후 가속도가 튀는 순간을 한 걸음으로 셈
+let grav = 9.8, lastStep = 0, motionArmed = true;
+function onMotion(e) {
+  const a = e.accelerationIncludingGravity;
+  if (!a || a.x == null) return;
+  sensor.motionOk = true;
+  const mag = Math.hypot(a.x, a.y, a.z);
+  grav = grav * 0.92 + mag * 0.08;
+  const dyn = mag - grav;
+  const now = performance.now();
+  if (motionArmed && dyn > 2.6 && now - lastStep > 320) { lastStep = now; motionArmed = false; addStep(); }
+  if (dyn < 0.8) motionArmed = true;
+}
+
+let analyser = null, micBuf = null, noiseFloor = 0.02;
+async function startMic() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+  ensureAudio();
+  const src = audio.createMediaStreamSource(stream);
+  // 후 부는 소리는 저음이 강해서 저역 위주로 봄
+  const lp = audio.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+  analyser = audio.createAnalyser(); analyser.fftSize = 1024;
+  src.connect(lp).connect(analyser);
+  micBuf = new Float32Array(analyser.fftSize);
+  sensor.micOk = true;
+}
+function readMic(dt) {
+  if (!analyser) return 0;
+  analyser.getFloatTimeDomainData(micBuf);
+  let sum = 0; for (let i = 0; i < micBuf.length; i++) sum += micBuf[i] * micBuf[i];
+  const rms = Math.sqrt(sum / micBuf.length);
+  // 조용할 때의 잡음 수준을 천천히 학습
+  if (rms < noiseFloor * 2) noiseFloor += (rms - noiseFloor) * Math.min(1, dt * 0.5);
+  const thr = Math.max(0.03, noiseFloor * 4);
+  return Math.max(0, Math.min(1, (rms - thr) / (thr * 3)));
+}
+
+function startLight() {
+  if (!('AmbientLightSensor' in window)) return;
+  try {
+    const s = new AmbientLightSensor({ frequency: 2 });
+    s.addEventListener('reading', () => { sensor.lightOk = true; sensor.lux = s.illuminance; });
+    s.start();
+  } catch {}
+}
+
+async function enableSensors() {
+  ensureAudio();
+  const errs = [];
+  try {
+    if (typeof DeviceOrientationEvent !== 'undefined' && DeviceOrientationEvent.requestPermission) await DeviceOrientationEvent.requestPermission();
+    if (typeof DeviceMotionEvent !== 'undefined' && DeviceMotionEvent.requestPermission) await DeviceMotionEvent.requestPermission();
+  } catch (e) { errs.push('기울기/움직임: ' + e.message); }
+  window.addEventListener('deviceorientation', onOrientation);
+  window.addEventListener('devicemotion', onMotion);
+  try { await startMic(); } catch (e) { errs.push('마이크: ' + (e.name === 'NotAllowedError' ? '권한 거부' : e.message)); }
+  startLight();
+  return errs;
+}
+
+// ------------------------------------------------------------
+// 사운드 / 진동
+// ------------------------------------------------------------
+let audio = null;
+function ensureAudio() { if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)(); if (audio.state === 'suspended') audio.resume(); }
+function tone(f, d, type = 'triangle', v = 0.12, delay = 0) {
+  if (!audio) return;
+  const t = audio.currentTime + delay, o = audio.createOscillator(), g = audio.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
+  o.connect(g).connect(audio.destination); o.start(t); o.stop(t + d);
+}
+const sfx = {
+  grow: () => [523, 659, 784].forEach((f, i) => tone(f, 0.25, 'triangle', 0.12, i * 0.1)),
+  bloom: () => [523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.3, 'triangle', 0.12, i * 0.09)),
+  step: () => tone(880, 0.05, 'sine', 0.05),
+  empty: () => tone(200, 0.2, 'sawtooth', 0.06),
+};
+const buzz = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+
+// ------------------------------------------------------------
+// 게임 로직
+// ------------------------------------------------------------
+function addStep() {
+  save.steps++;
+  save.stamina = Math.min(MAX_STAMINA, save.stamina + STEP_GAIN);
+  stepPulse = 1; sfx.step();
+}
+
+let pourFlow = 0, blowLevel = 0, emptyWarned = 0, stepPulse = 0;
+function needs(stage) {
+  // 단계마다 채워야 하는 게이지
+  if (stage === 0) return ['water'];
+  if (stage === 1) return ['water', 'sun'];
+  if (stage === 2) return ['pollen'];
+  return [];
+}
+
+function update(dt) {
+  const p = save.plant;
+  // 물주기: 기울인 정도 → 물의 양
+  const tilt = sensor.demoTilt ? 60 : Math.abs(sensor.tilt);
+  pourFlow = Math.max(0, Math.min(1, (tilt - TILT_START) / (TILT_FULL - TILT_START)));
+  if (pourFlow > 0 && save.stamina <= 0) {
+    pourFlow = 0;
+    if (performance.now() - emptyWarned > 2500) { emptyWarned = performance.now(); toast('⚡ 체력이 없어요! 걷거나 폰을 흔들어 충전하세요'); sfx.empty(); buzz(80); }
+  }
+  if (pourFlow > 0) save.stamina = Math.max(0, save.stamina - WATER_COST * pourFlow * dt);
+  if (needs(p.stage).includes('water')) p.water = Math.min(100, p.water + WATER_RATE * pourFlow * dt);
+
+  // 햇빛: 조도 센서가 있으면 밝을수록, 없으면 자동으로 차오름
+  if (needs(p.stage).includes('sun')) {
+    const sunRate = sensor.lightOk ? SUN_RATE * 2 * Math.min(1, Math.max(0, (sensor.lux - 50) / 400)) : SUN_RATE;
+    p.sun = Math.min(100, p.sun + sunRate * dt);
+  }
+
+  // 후 불기 → 꽃가루
+  blowLevel = sensor.demoBlow ? 1 : readMic(dt);
+  if (needs(p.stage).includes('pollen')) p.pollen = Math.min(100, p.pollen + BLOW_RATE * blowLevel * dt);
+
+  // 단계 완료 확인
+  const need = needs(p.stage);
+  if (need.length && need.every(k => p[k] >= 100)) {
+    p.stage++; p.water = 0; p.sun = 0; p.pollen = 0;
+    growPop = 1;
+    if (p.stage === 3) { sfx.bloom(); buzz([100, 60, 200]); toast(`🌼 꽃이 피었어요! ${FLOWERS[p.kind].name}`); }
+    else { sfx.grow(); buzz(120); toast(`🌱 ${STAGES[p.stage]}(으)로 자랐어요!`); }
+    persist();
+  }
+  saveTimer += dt; if (saveTimer > 2) { saveTimer = 0; persist(); }
+}
+
+function harvest() {
+  const p = save.plant;
+  if (p.stage !== 3) return;
+  const isNew = !save.dex[p.kind];
+  save.dex[p.kind] = (save.dex[p.kind] || 0) + 1;
+  save.harvests++;
+  const f = FLOWERS[p.kind];
+  for (let i = 0; i < 40; i++) petals.push(newPetal(W / 2, flowerTopY(), f.c));
+  save.plant = freshPlant();
+  persist(); sfx.bloom(); buzz(150);
+  toast(isNew ? `📖 도감에 ${f.name} 등록!` : `${f.e} ${f.name} 수확!`);
+}
+
+// ------------------------------------------------------------
+// 화면 UI
+// ------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const overlay = $('overlay'), panel = $('panel');
+let toastTimer;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200); }
+
+const GAUGE = {
+  water:  { icon: '💧', name: '물', color: '#4cc9f0' },
+  sun:    { icon: '☀️', name: '햇빛', color: '#ffb703' },
+  pollen: { icon: '🌼', name: '꽃가루', color: '#f4a261' },
+};
+let lastStage = -1;
+function renderCard() {
+  const p = save.plant;
+  if (p.stage !== lastStage) {
+    lastStage = p.stage;
+    const desc = [
+      '폰을 <b>물뿌리개처럼 옆으로 기울여</b> 물을 주세요. 많이 기울일수록 물이 많이 나와요.',
+      '물을 더 주세요. 새싹은 <b>햇빛</b>도 필요해요' + (sensor.lightOk ? ' — 폰을 밝은 곳에 두세요.' : ' (자동으로 차올라요).'),
+      '꽃봉오리에 <b>마이크에 대고 후~ 불어</b> 꽃가루를 날려 주세요.',
+      '꽃이 피었어요! 수확해서 도감에 모아 보세요.',
+    ][p.stage];
+    $('taskTitle').textContent = `${['🌰', '🌱', '🌿', FLOWERS[p.kind].e][p.stage]} ${STAGES[p.stage]}` + (p.stage < 3 ? ` (${p.stage + 1}/3단계)` : '');
+    $('taskDesc').innerHTML = desc;
+    $('gauges').innerHTML = needs(p.stage).map(k => `
+      <div><div class="glabel"><span>${GAUGE[k].icon} ${GAUGE[k].name}</span><span id="g_${k}_t">0%</span></div>
+      <div class="bar"><i id="g_${k}" style="background:${GAUGE[k].color}"></i></div></div>`).join('');
+    const btn = $('actionBtn');
+    btn.style.display = p.stage === 3 ? 'block' : 'none';
+    btn.textContent = `✂️ ${FLOWERS[p.kind].name} 수확하기`;
+    resize(); // 카드 높이가 바뀌므로 화분 위치 다시 계산
+  }
+  for (const k of needs(p.stage)) {
+    $('g_' + k).style.width = p[k] + '%';
+    $('g_' + k + '_t').textContent = Math.floor(p[k]) + '%';
+  }
+  $('stBar').style.width = (save.stamina / MAX_STAMINA * 100) + '%';
+  $('stTxt').textContent = Math.floor(save.stamina);
+  $('stepTxt').textContent = save.steps;
+  $('harvTxt').textContent = save.harvests;
+}
+
+function showStart() {
+  const secure = window.isSecureContext;
+  panel.innerHTML = `
+    <h1>🪴 숨결 화분</h1>
+    <p>현실의 행동으로 꽃을 키워요.</p>
+    <ul>
+      <li>🫗 폰을 <b>옆으로 기울이면</b> 물주기</li>
+      <li>💨 마이크에 <b>후~ 불면</b> 꽃가루 수분</li>
+      <li>👟 <b>걷거나 흔들면</b> 물주기 체력 충전</li>
+      <li>🌸 꽃을 수확해서 <b>도감</b>을 채우기</li>
+    </ul>
+    ${secure ? '' : '<p class="small" style="color:#c1121f">⚠️ HTTPS가 아니라서 센서를 쓸 수 없어요. serve_https.py로 연 주소로 접속하세요. (시연 모드 버튼으로는 플레이 가능)</p>'}
+    <button class="big main" id="startBtn">센서 켜고 시작</button>
+    <p class="small">기울기·움직임·마이크 권한을 물어보면 허용해 주세요.<br>PC에서는 🎮 시연 모드 버튼으로 해 볼 수 있어요.</p>`;
+  overlay.classList.remove('hidden');
+  $('startBtn').onclick = async () => {
+    $('startBtn').disabled = true; $('startBtn').textContent = '센서 확인 중…';
+    const errs = await enableSensors();
+    setTimeout(() => showSensorCheck(errs), 700); // 이벤트가 들어올 시간을 조금 줌
+  };
+}
+
+function showSensorCheck(errs) {
+  const chip = (ok, label) => `<span class="chip ${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'} ${label}</span>`;
+  panel.innerHTML = `
+    <h2>센서 상태</h2>
+    <div class="chips">
+      ${chip(sensor.tiltOk, '기울기')}${chip(sensor.motionOk, '걸음/흔들기')}${chip(sensor.micOk, '마이크')}${chip(sensor.lightOk, '조도(선택)')}
+    </div>
+    ${errs.length ? `<p class="small">${errs.join('<br>')}</p>` : ''}
+    <p class="small">${sensor.tiltOk && sensor.micOk ? '준비 완료! 시연 중심 기능(기울여 물주기, 불기)을 쓸 수 있어요.' : '안 되는 센서는 🎮 시연 모드 버튼으로 대신할 수 있어요.'}
+    ${sensor.lightOk ? '' : '<br>조도 센서가 없으면 햇빛은 자동으로 차올라요.'}</p>
+    <button class="big main" id="goBtn">화분으로 가기</button>`;
+  $('goBtn').onclick = () => {
+    overlay.classList.add('hidden');
+    if (!sensor.tiltOk || !sensor.micOk) setDemo(true);
+  };
+}
+
+function showDex() {
+  panel.innerHTML = `<h2>📖 꽃 도감 (${Object.keys(save.dex).length}/${FLOWERS.length})</h2>
+    <div class="dex">${FLOWERS.map((f, i) => save.dex[i]
+      ? `<div><div class="e">${f.e}</div><div class="n">${f.name}</div><div class="c">${save.dex[i]}송이</div></div>`
+      : `<div class="locked"><div class="e">${f.e}</div><div class="n">???</div><div class="c">${f.w === 1 ? '희귀' : '미발견'}</div></div>`).join('')}</div>
+    <button class="big main" id="closeDex">닫기</button>
+    <p class="small"><a href="#" id="resetBtn" style="color:inherit">기록 초기화</a></p>`;
+  overlay.classList.remove('hidden');
+  $('closeDex').onclick = () => overlay.classList.add('hidden');
+  $('resetBtn').onclick = (e) => {
+    e.preventDefault();
+    if (!confirm('도감과 화분을 모두 초기화할까요?')) return;
+    save = { stamina: 60, steps: 0, harvests: 0, dex: {}, plant: freshPlant() };
+    lastStage = -1; persist(); overlay.classList.add('hidden');
+  };
+}
+
+function setDemo(on) { $('demo').classList.toggle('on', on); }
+$('demoBtn').onclick = () => setDemo(!$('demo').classList.contains('on'));
+$('dexBtn').onclick = showDex;
+$('actionBtn').onclick = harvest;
+function holdButton(el, key) {
+  const on = e => { e.preventDefault(); ensureAudio(); sensor[key] = true; el.classList.add('held'); };
+  const off = () => { sensor[key] = false; el.classList.remove('held'); };
+  el.addEventListener('pointerdown', on);
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => el.addEventListener(t, off));
+}
+holdButton($('dPour'), 'demoTilt');
+holdButton($('dBlow'), 'demoBlow');
+$('dStep').addEventListener('pointerdown', e => { e.preventDefault(); ensureAudio(); for (let i = 0; i < 5; i++) addStep(); });
+
+// ------------------------------------------------------------
+// 그리기
+// ------------------------------------------------------------
+const cv = $('cv'), ctx = cv.getContext('2d');
+let W, H, DPR, potY, potW;
+function resize() {
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = innerWidth; H = innerHeight;
+  cv.width = W * DPR; cv.height = H * DPR; cv.style.width = W + 'px'; cv.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const cardH = $('card').offsetHeight;
+  potW = Math.min(170, W * 0.42);
+  potY = H - cardH - 40 - potW * 0.55;
+}
+addEventListener('resize', resize);
+
+let drops = [], pollens = [], petals = [], growPop = 0, t = 0;
+const newPetal = (x, y, c) => { const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 220; return { x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 150, life: 0, c, r: 4 + Math.random() * 5, rot: Math.random() * 6 }; };
+
+// 단계와 진행도에 따른 줄기 높이
+function stemHeight() {
+  const p = save.plant, max = Math.min(H * 0.32, 230);
+  const prog = p.stage === 0 ? 0 : p.stage === 1 ? (p.water + p.sun) / 200 : 1;
+  return [0, max * (0.25 + prog * 0.35), max * 0.85, max][p.stage] || 0;
+}
+function flowerTopY() { return potY - stemHeight(); }
+
+function draw(dt) {
+  t += dt;
+  const p = save.plant, f = FLOWERS[p.kind];
+  // 하늘
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#bde0fe'); g.addColorStop(0.7, '#e2f5e2'); g.addColorStop(1, '#cdeccd');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  // 햇빛 (새싹 단계)
+  if (needs(p.stage).includes('sun')) {
+    ctx.save(); ctx.translate(W * 0.15, 110); ctx.rotate(t * 0.3);
+    ctx.fillStyle = 'rgba(255, 200, 0, .25)';
+    for (let i = 0; i < 10; i++) { ctx.rotate(Math.PI / 5); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(90, -12); ctx.lineTo(90, 12); ctx.fill(); }
+    ctx.restore();
+    ctx.font = '54px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('☀️', W * 0.15, 110);
+  }
+
+  // 땅
+  ctx.fillStyle = '#95d5b2'; ctx.beginPath(); ctx.ellipse(W / 2, potY + potW * 0.62, W * 0.7, 40, 0, 0, Math.PI * 2); ctx.fill();
+
+  const sway = Math.sin(t * 1.6) * 0.04 + (blowLevel * 0.18) * Math.sin(t * 9);
+  const sh = stemHeight() * (1 + growPop * 0.08);
+  growPop = Math.max(0, growPop - dt * 2);
+
+  // 식물
+  ctx.save(); ctx.translate(W / 2, potY); ctx.rotate(sway);
+  if (p.stage === 0) {
+    ctx.fillStyle = '#8d5524'; ctx.beginPath(); ctx.ellipse(0, -4, 9, 6, 0.4, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.strokeStyle = '#2d6a4f'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.quadraticCurveTo(10, -sh / 2, 0, -sh); ctx.stroke();
+    const leaf = (y, dir, s) => { ctx.save(); ctx.translate(2, -y); ctx.rotate(dir * 0.8); ctx.fillStyle = '#52b788'; ctx.beginPath(); ctx.ellipse(dir * s, 0, s, s * 0.45, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); };
+    const ls = p.stage === 1 ? 14 + sh * 0.06 : 24;
+    leaf(sh * (p.stage === 1 ? 0.85 : 0.35), -1, ls); leaf(sh * (p.stage === 1 ? 0.85 : 0.5), 1, ls);
+    if (p.stage === 2) {
+      const open = p.pollen / 100;
+      ctx.fillStyle = '#52b788'; ctx.beginPath(); ctx.ellipse(0, -sh - 6, 14, 20, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = f.c; ctx.beginPath(); ctx.ellipse(0, -sh - 14 - open * 4, 9 + open * 8, 14 + open * 4, 0, 0, Math.PI * 2); ctx.fill();
+    } else if (p.stage === 3) {
+      const s = 84 * (1 + growPop * 0.3);
+      ctx.font = `${s}px "Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(f.e, 0, -sh - s * 0.3);
+    }
+  }
+  ctx.restore();
+
+  // 화분
+  const soilWet = Math.min(1, (p.stage < 2 ? p.water : 100) / 100);
+  ctx.fillStyle = '#c96e3f'; ctx.strokeStyle = '#2d3a2e'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(W / 2 - potW / 2, potY); ctx.lineTo(W / 2 + potW / 2, potY);
+  ctx.lineTo(W / 2 + potW * 0.38, potY + potW * 0.62); ctx.lineTo(W / 2 - potW * 0.38, potY + potW * 0.62); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#e07a4a'; ctx.beginPath(); ctx.roundRect(W / 2 - potW / 2 - 8, potY - 6, potW + 16, 22, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = soilWet > 0.05 ? `rgb(${110 - soilWet * 50},${70 - soilWet * 30},${40 - soilWet * 15})` : '#8b5e34';
+  ctx.beginPath(); ctx.ellipse(W / 2, potY - 4, potW / 2 - 6, 7, 0, 0, Math.PI * 2); ctx.fill();
+
+  // 물뿌리개: 실제 폰 기울기만큼 같이 기울어짐
+  if (p.stage < 2) {
+    const dir = (sensor.demoTilt ? 1 : Math.sign(sensor.tilt) || 1);
+    const ang = Math.min(1.2, (sensor.demoTilt ? 60 : Math.abs(sensor.tilt)) * Math.PI / 180) * dir;
+    const cx = W / 2 - dir * (potW * 0.55), cy = potY - stemHeight() - 110;
+    ctx.save(); ctx.translate(cx, Math.max(150, cy)); ctx.rotate(ang);
+    ctx.fillStyle = '#4ea8de'; ctx.strokeStyle = '#2d3a2e'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.roundRect(-34, -24, 68, 48, 10); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(dir * 30, 4); ctx.lineTo(dir * 72, -18); ctx.lineTo(dir * 74, -10); ctx.lineTo(dir * 32, 14); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(-dir * 34, 0, 16, Math.PI / 2, Math.PI * 1.5, dir > 0); ctx.stroke();
+    // 물줄기 시작점 (주둥이 끝)
+    const sx = dir * 76, sy = -16;
+    const wx = Math.cos(ang) * sx - Math.sin(ang) * sy, wy = Math.sin(ang) * sx + Math.cos(ang) * sy;
+    ctx.restore();
+    if (pourFlow > 0) for (let i = 0; i < Math.ceil(pourFlow * 3); i++)
+      drops.push({ x: cx + wx + (Math.random() - 0.5) * 6, y: Math.max(150, cy) + wy, vx: dir * (40 + Math.random() * 40), vy: 20, life: 0 });
+  }
+  ctx.fillStyle = '#4cc9f0';
+  drops = drops.filter(d => { d.life += dt; d.vy += 900 * dt; d.x += d.vx * dt; d.y += d.vy * dt; ctx.beginPath(); ctx.ellipse(d.x, d.y, 3, 6, 0, 0, Math.PI * 2); ctx.fill(); return d.y < potY && d.life < 2; });
+
+  // 꽃가루
+  if (p.stage === 2 && blowLevel > 0.05) for (let i = 0; i < Math.ceil(blowLevel * 4); i++)
+    pollens.push({ x: W / 2 + (Math.random() - 0.5) * 30, y: potY - stemHeight() - 10, vx: (Math.random() - 0.3) * 120, vy: -40 - Math.random() * 80, life: 0 });
+  pollens = pollens.filter(q => { q.life += dt; q.x += q.vx * dt + Math.sin(t * 5 + q.y) * 0.8; q.y += q.vy * dt; ctx.globalAlpha = 1 - q.life / 1.5; ctx.fillStyle = '#ffd60a'; ctx.beginPath(); ctx.arc(q.x, q.y, 3, 0, Math.PI * 2); ctx.fill(); return q.life < 1.5; });
+  ctx.globalAlpha = 1;
+
+  petals = petals.filter(q => { q.life += dt; q.vy += 300 * dt; q.x += q.vx * dt; q.y += q.vy * dt; q.rot += dt * 4; ctx.save(); ctx.globalAlpha = Math.max(0, 1 - q.life / 1.6); ctx.translate(q.x, q.y); ctx.rotate(q.rot); ctx.fillStyle = q.c; ctx.beginPath(); ctx.ellipse(0, 0, q.r, q.r * 0.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.restore(); return q.life < 1.6; });
+
+  // 불기 세기 표시 (꽃봉오리 단계)
+  if (p.stage === 2) {
+    const bx = W - 34, by = potY - 160, bh = 140;
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2d3a2e'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.roundRect(bx - 10, by, 20, bh, 10); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#f4a261'; ctx.beginPath(); ctx.roundRect(bx - 8, by + bh - 2 - (bh - 4) * blowLevel, 16, (bh - 4) * blowLevel, 8); ctx.fill();
+    ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('💨', bx, by - 14);
+  }
+  if (stepPulse > 0) { stepPulse = Math.max(0, stepPulse - dt * 3); }
+}
+
+// ------------------------------------------------------------
+// 메인 루프
+// ------------------------------------------------------------
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (overlay.classList.contains('hidden')) update(dt);
+  renderCard();
+  draw(dt);
+  requestAnimationFrame(frame);
+}
+renderCard();
+resize();
+showStart();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# 조원마다 운영체제(윈도우·맥)가 달라도 줄바꿈을 같게 맞춘다
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.zip binary
+*.docx binary
+*.task binary
+*.wasm binary

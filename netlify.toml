@@ -1,0 +1,8 @@
+# Netlify를 GitHub 저장소에 연결했을 때 쓰는 빌드 설정
+# (Netlify Drop으로 dist 폴더를 직접 올릴 때는 쓰이지 않는다)
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
