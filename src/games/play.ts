@@ -24,6 +24,15 @@ interface SetupEntry<K extends SetupKind> {
 
 /** 장치 준비 화면 목록. 새 장치를 쓰는 게임을 만들면 여기에 연결한다 */
 const SETUPS: { [K in SetupKind]: SetupEntry<K> } = {
+  embedded: {
+    mount: (_root, a) => {
+      // 준비 완료 콜백은 정리 함수가 등록된 다음 실행한다.
+      let cancelled = false;
+      queueMicrotask(() => { if (!cancelled) a.onReady({ stop() {} }); });
+      return () => { cancelled = true; };
+    },
+    stop: (input) => input.stop(),
+  },
   'camera-pose': {
     mount: (root, a) => mountCameraSetup(root, {
       gameTitle: a.gameTitle,

@@ -1,4 +1,5 @@
 node_modules
+.pnpm-store/
 dist
 *.pem
 # scripts/setup-mediapipe.mjs 가 자동으로 만든다

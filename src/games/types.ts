@@ -47,6 +47,8 @@ export interface GameMeta {
  * 새 장치를 쓰는 게임을 만들 때 여기에 한 줄 추가하고, src/games/play.ts의 SETUPS에 준비 화면을 연결한다.
  */
 export interface SetupInputs {
+  /** 전달받은 독립 웹게임은 자체 준비 화면을 사용한다. */
+  embedded: { stop(): void };
   /** 📷 웹캠 전신 포즈 (src/input/camera-pose.ts, src/setup/camera-setup.ts) */
   'camera-pose': CameraPoseAdapter;
 }
