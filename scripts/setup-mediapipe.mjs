@@ -13,6 +13,9 @@ const MODELS = {
     'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
   'hand_landmarker.task':
     'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+  // gaze-ball 체험판 (public/games/gaze-ball/index.html)
+  'face_landmarker.task':
+    'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task',
 };
 
 mkdirSync(join(outDir, 'wasm'), { recursive: true });
@@ -20,6 +23,9 @@ for (const f of readdirSync(wasmSrc)) {
   const dst = join(outDir, 'wasm', f);
   if (!existsSync(dst)) copyFileSync(join(wasmSrc, f), dst);
 }
+// Vite를 거치지 않는 독립 HTML 게임(gaze-ball)이 CDN 없이 불러올 수 있게 라이브러리 본체도 복사한다.
+// 설치된 패키지 버전과 WASM이 항상 짝이 맞도록 매번 덮어쓴다. (.mjs는 서버에 따라 JS로 안 보일 수 있어 .js로 저장)
+copyFileSync(join(wasmSrc, '..', 'vision_bundle.mjs'), join(outDir, 'vision_bundle.js'));
 
 const RETRIES = 3;
 const TIMEOUT_MS = 60_000;
