@@ -61,6 +61,7 @@
 | `dont-say` | 말하지 말랬잖아! | 🎤 mic | 소리 크기·길이·높이·침묵·단어·박자로 우주선 수리 |
 | `ghost-store` | 귀신도 편의점에 옵니다 | 🥽 xr | 스캐너·부적·손전등으로 손님이 사람인지 귀신인지 판단 |
 | `gaze-ball` | 눈으로 공을 굴려라 | 👁️ gaze | 시선으로 공 조향·가속, 햅틱 조끼로 노면·충돌 체감 |
+| `quick-fetch` | 번개 심부름 | 📷 camera | 2~4인, 화면에 뜬 물건(스마트폰·지갑·라이터·에어팟·마우스)을 찾아 내 칸에 먼저 보여 주기 (웹캠 사물 인식) |
 
 - 게임별 상세 기획: `docs/games/<게임ID>.md`, 전체 배정표: `docs/games/00-overview.md`
 - 위 표의 순서가 제작 순서다. 첫 구현 대상: **`body-rebel` (몸이 말을 안 들어!)**
@@ -113,6 +114,7 @@
 - 2D 물리: Matter.js (`stack-sense`)
 - 프레임워크: 사용하지 않음 (바닐라 TS). 필요해지면 그때 검토
 - 카메라 인식: `@mediapipe/tasks-vision` 의 HandLandmarker / PoseLandmarker / FaceLandmarker
+- 사물 인식: `@tensorflow/tfjs` + Teachable Machine 이미지 모델 (`quick-fetch`, 모델은 `public/models/quick-fetch/`)
 - 유니티 빌드: `gaze-ball` 정식판 (별도 저장소, 게임 규칙·수치는 웹판과 같은 config 값을 공유)
 - 배포: 정적 사이트 (GitHub Pages 또는 Netlify). **카메라·마이크·센서는 HTTPS 또는 localhost에서만 동작**하므로 배포는 반드시 HTTPS
 - 서버: 1단계에서는 없음. (폰을 PC 게임의 컨트롤러로 쓰는 기능은 서버가 필요하므로 이후 단계에서 검토)
@@ -155,6 +157,7 @@
 │   │   ├─ pose-actions.ts    # 전신 관절 → 동작 ID 판별 (카메라와 무관한 순수 로직)
 │   │   ├─ mic.ts             # 음량·길이·음높이·단어
 │   │   ├─ camera-hand.ts
+│   │   ├─ camera-object.ts   # 칸별 사물 인식 + 빈 화면 보정 (Teachable Machine 모델)
 │   │   ├─ camera-pose.ts
 │   │   ├─ xr.ts
 │   │   ├─ gaze.ts            # 시선 + 햅틱 출력 (체험판 구현)

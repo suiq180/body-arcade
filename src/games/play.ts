@@ -4,6 +4,7 @@
 
 import { mountCameraSetup } from '../setup/camera-setup';
 import { mountHandSetup } from '../setup/hand-setup';
+import { mountObjectSetup } from '../setup/object-setup';
 import { mountRhythmSetup } from '../setup/rhythm-setup';
 import { mountMicSetup } from '../setup/mic-setup';
 import { escapeHtml } from '../shared/html';
@@ -49,6 +50,14 @@ const SETUPS: { [K in SetupKind]: SetupEntry<K> } = {
   },
   'camera-hand': {
     mount: (root, a) => mountHandSetup(root, { gameTitle: a.gameTitle, backHref: a.backHref, onStart: a.onReady }),
+    stop: (input) => input.stop(),
+  },
+  'camera-object': {
+    mount: (root, a) => {
+      const cfg = a.module.objectSetup;
+      if (!cfg) throw new Error(`[${a.gameId}] 사물 인식 게임은 objectSetup 설정이 필요해요`);
+      return mountObjectSetup(root, { ...cfg, gameTitle: a.gameTitle, players: a.players, backHref: a.backHref, onStart: a.onReady });
+    },
     stop: (input) => input.stop(),
   },
   rhythm: {
@@ -149,7 +158,7 @@ export function mountPlay(root: HTMLElement, game: GameMeta): () => void {
           players: r.scores.map((s, i) => ({
             name: r.names?.[i] ?? (multi ? `P${i + 1}` : '내 점수'),
             score: s,
-            color: multi ? PLAYER_COLORS[i] : undefined,
+            color: r.colors?.[i] ?? (multi ? PLAYER_COLORS[i] : undefined),
             detail: r.details?.[i],
           })),
           summary: r.summary,

@@ -5,10 +5,12 @@
 // 자세한 방법: docs/게임추가가이드.md
 
 import type { CameraHandAdapter } from '../input/camera-hand';
+import type { CameraObjectAdapter } from '../input/camera-object';
 import type { CameraPoseAdapter } from '../input/camera-pose';
 import type { MicAdapter } from '../input/mic';
 import type { RhythmInput, RhythmRole } from '../input/midi';
 import type { DeviceId } from '../shared/devices';
+import type { ObjectSetupConfig } from '../setup/object-setup';
 
 export type GameStatus = 'ready' | 'wip';
 
@@ -56,6 +58,8 @@ export interface SetupInputs {
   'camera-pose': CameraPoseAdapter;
   /** 📷 웹캠 손 추적 (src/input/camera-hand.ts, src/setup/hand-setup.ts) */
   'camera-hand': CameraHandAdapter;
+  /** 📷 웹캠 사물 인식 — Teachable Machine 이미지 모델 (src/input/camera-object.ts, src/setup/object-setup.ts) */
+  'camera-object': CameraObjectAdapter;
   /** 🥁 MIDI·게임패드·키보드 (src/input/midi.ts, src/setup/rhythm-setup.ts) */
   rhythm: RhythmInput;
   /** 🎤 마이크 (src/input/mic.ts, src/setup/mic-setup.ts) */
@@ -77,6 +81,8 @@ export interface GameResult {
   names?: string[];
   /** 플레이어별 한 줄 설명 (예: "30문제 중 24개 성공") */
   details?: string[];
+  /** 플레이어 색 (없으면 기본 2색). 3인 이상 게임에서 쓴다 */
+  colors?: string[];
   /** 결과 아래 요약 줄 */
   summary?: string[];
   /** "플레이 기록 내보내기"로 저장할 데이터 (밸런스 조정용, 기획서 9장) */
@@ -96,5 +102,7 @@ export interface GameModule<K extends SetupKind = SetupKind> {
   modes: PlayMode[];
   /** 리듬 게임: 인원에 따른 역할(키 배정) 목록 */
   rhythmRoles?: (players: number) => RhythmRole[];
+  /** 사물 인식 게임: 준비 화면 설정 (물건 목록, 모델 폴더, 빈 화면 보정 값 등) */
+  objectSetup?: ObjectSetupConfig;
   start(container: HTMLElement, input: SetupInputs[K], opts: StartOptions): { destroy(): void };
 }
