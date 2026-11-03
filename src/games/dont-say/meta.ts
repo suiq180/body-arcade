@@ -13,14 +13,13 @@ export const meta: GameMeta = {
     '크게 외치기 · 소리 유지 · 음높이 맞추기 · 조용히 · 단어 말하기 · 박자 맞추기',
     '파란 화면(정직 로봇)은 지시대로, 빨간 화면(거짓말 로봇)은 반대로!',
     '둘이서: 크기·길이 담당과 높이·단어 담당으로 역할 나누기',
-    '장치 3개가 멈추면 우주선 폭발!',
+    '장치 3개가 멈추면 우주선 폭발! 이어폰을 쓰면 더 잘 인식돼요',
   ],
   description: '소리 지르고, 높게 노래하고, 숨죽이며 우주선을 고쳐요. 거짓말 로봇의 지시는 반대로!',
   devices: ['mic'],
-  status: 'wip',
+  status: 'ready',
   thumbnail: { emoji: '🚀', from: '#91a7ff', to: '#364fc7' },
   playTime: '4분',
   players: '1~2명 협동',
-  // 게임을 만들면: status를 'ready'로 바꾸고 아래 줄의 주석을 푼다 (docs/게임추가가이드.md)
-  // load: () => import('./index'),
+  load: () => import('./index'),
 };

@@ -3,6 +3,9 @@
 // 장치(카메라 등)는 준비 화면에서 켜서 게임·결과·다시 하기까지 이어서 쓰고, 이 화면을 떠날 때 끈다.
 
 import { mountCameraSetup } from '../setup/camera-setup';
+import { mountHandSetup } from '../setup/hand-setup';
+import { mountRhythmSetup } from '../setup/rhythm-setup';
+import { mountMicSetup } from '../setup/mic-setup';
 import { escapeHtml } from '../shared/html';
 import { renderResults } from '../shared/results';
 import { unlockAudio } from '../shared/sfx';
@@ -10,6 +13,8 @@ import { PLAYER_COLORS } from '../shared/pose-draw';
 import type { GameMeta, GameModule, SetupInputs, SetupKind } from './types';
 
 interface SetupArgs<K extends SetupKind> {
+  gameId: string;
+  module: GameModule;
   gameTitle: string;
   players: number;
   backHref: string;
@@ -40,6 +45,24 @@ const SETUPS: { [K in SetupKind]: SetupEntry<K> } = {
       backHref: a.backHref,
       onStart: a.onReady,
     }),
+    stop: (input) => input.stop(),
+  },
+  'camera-hand': {
+    mount: (root, a) => mountHandSetup(root, { gameTitle: a.gameTitle, backHref: a.backHref, onStart: a.onReady }),
+    stop: (input) => input.stop(),
+  },
+  rhythm: {
+    mount: (root, a) => mountRhythmSetup(root, {
+      gameId: a.gameId,
+      gameTitle: a.gameTitle,
+      roles: a.module.rhythmRoles?.(a.players) ?? [],
+      backHref: a.backHref,
+      onStart: a.onReady,
+    }),
+    stop: (input) => input.stop(),
+  },
+  mic: {
+    mount: (root, a) => mountMicSetup(root, { gameTitle: a.gameTitle, backHref: a.backHref, onStart: a.onReady }),
     stop: (input) => input.stop(),
   },
 };
@@ -95,6 +118,8 @@ export function mountPlay(root: HTMLElement, game: GameMeta): () => void {
     if (!module) return;
     const entry = SETUPS[module.setup] as SetupEntry<SetupKind>;
     cleanupSetup = entry.mount(root, {
+      gameId: game.id,
+      module,
       gameTitle: game.title,
       players,
       backHref: hubHref,
@@ -122,7 +147,7 @@ export function mountPlay(root: HTMLElement, game: GameMeta): () => void {
           title: game.title,
           bestKey: `${game.id}:${players}p`,
           players: r.scores.map((s, i) => ({
-            name: multi ? `P${i + 1}` : '내 점수',
+            name: r.names?.[i] ?? (multi ? `P${i + 1}` : '내 점수'),
             score: s,
             color: multi ? PLAYER_COLORS[i] : undefined,
             detail: r.details?.[i],

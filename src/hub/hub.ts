@@ -8,7 +8,7 @@ import { DEVICES, checkSupport, findDevice, type DeviceId } from '../shared/devi
 import { escapeHtml } from '../shared/html';
 
 /** 장치 준비 화면이 만들어진 장치 (단계별로 늘어남) */
-const SETUP_READY: DeviceId[] = ['camera'];
+const SETUP_READY: DeviceId[] = ['camera', 'mic', 'rhythm'];
 /** 장치 탭 색 */
 const DEVICE_COLORS: Record<DeviceId, string> = {
   mic: '#ff4d6d', camera: '#ff8a00', xr: '#7c4dff', gaze: '#12b886', rhythm: '#228be6',
@@ -120,8 +120,9 @@ export function renderHub(root: HTMLElement, current: DeviceId): () => void {
 
           ${SETUP_READY.length ? `<section class="panel test-box">
             <div class="panel-head"><h2>🧪 장치 테스트</h2></div>
-            <p>게임 전에 카메라가 내 몸을 잘 인식하는지 먼저 확인해 보세요.</p>
-            ${SETUP_READY.map((id) => `<a class="btn-hot" href="#/setup/${id}">${findDevice(id)!.icon} ${findDevice(id)!.name} 테스트</a>`).join('')}
+            <p>게임 전에 장치가 잘 인식되는지 먼저 확인해 보세요.</p>
+            ${SETUP_READY.map((id) => `<a class="btn-hot" href="#/setup/${id}">${findDevice(id)!.icon} ${id === 'camera' ? '전신 인식' : findDevice(id)!.name} 테스트</a>`).join('')}
+            <a class="btn-hot" href="#/setup/hand">✋ 손 추적 테스트</a>
           </section>` : ''}
 
           <section class="panel">

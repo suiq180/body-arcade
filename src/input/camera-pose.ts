@@ -261,7 +261,8 @@ function toRegion(lm: Point[], [x0, x1]: [number, number]): Point[] {
   return lm.map((p) => ({ x: (p.x - x0) / w, y: p.y, visibility: p.visibility }));
 }
 
-function cameraError(err: unknown): CameraStatus {
+/** getUserMedia 오류 → 원인별 안내 문구 (손 추적 어댑터도 같이 쓴다) */
+export function cameraError(err: unknown): CameraStatus & { state: 'error' } {
   const name = err instanceof DOMException ? err.name : '';
   switch (name) {
     case 'NotAllowedError':

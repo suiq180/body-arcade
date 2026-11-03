@@ -1,4 +1,4 @@
-// MediaPipe 실행 파일(WASM)과 전신 포즈 모델을 public/mediapipe/ 에 준비한다.
+// MediaPipe 실행 파일(WASM)과 전신 포즈·손 모델을 public/mediapipe/ 에 준비한다.
 // 사이트가 외부 CDN 없이 자기 서버에서 인식 파일을 내려주도록 하기 위함 (전시장 오프라인 대비).
 // npm run dev / npm run build 전에 자동 실행된다. 이미 있으면 건너뛴다.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
@@ -11,6 +11,8 @@ const wasmSrc = join(root, 'node_modules', '@mediapipe', 'tasks-vision', 'wasm')
 const MODELS = {
   'pose_landmarker_lite.task':
     'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+  'hand_landmarker.task':
+    'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
 };
 
 mkdirSync(join(outDir, 'wasm'), { recursive: true });

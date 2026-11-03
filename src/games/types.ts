@@ -4,7 +4,10 @@
 //   index.ts : 실제 게임 (GameModule을 default로 내보냄)
 // 자세한 방법: docs/게임추가가이드.md
 
+import type { CameraHandAdapter } from '../input/camera-hand';
 import type { CameraPoseAdapter } from '../input/camera-pose';
+import type { MicAdapter } from '../input/mic';
+import type { RhythmInput, RhythmRole } from '../input/midi';
 import type { DeviceId } from '../shared/devices';
 
 export type GameStatus = 'ready' | 'wip';
@@ -51,6 +54,12 @@ export interface SetupInputs {
   embedded: { stop(): void };
   /** 📷 웹캠 전신 포즈 (src/input/camera-pose.ts, src/setup/camera-setup.ts) */
   'camera-pose': CameraPoseAdapter;
+  /** 📷 웹캠 손 추적 (src/input/camera-hand.ts, src/setup/hand-setup.ts) */
+  'camera-hand': CameraHandAdapter;
+  /** 🥁 MIDI·게임패드·키보드 (src/input/midi.ts, src/setup/rhythm-setup.ts) */
+  rhythm: RhythmInput;
+  /** 🎤 마이크 (src/input/mic.ts, src/setup/mic-setup.ts) */
+  mic: MicAdapter;
 }
 export type SetupKind = keyof SetupInputs;
 
@@ -64,6 +73,8 @@ export interface PlayMode {
 export interface GameResult {
   /** 플레이어별 점수 (1인이면 길이 1) */
   scores: number[];
+  /** 플레이어 이름 (없으면 P1, P2 …). AI 상대가 있는 게임 등에서 쓴다 */
+  names?: string[];
   /** 플레이어별 한 줄 설명 (예: "30문제 중 24개 성공") */
   details?: string[];
   /** 결과 아래 요약 줄 */
@@ -83,5 +94,7 @@ export interface GameModule<K extends SetupKind = SetupKind> {
   setup: K;
   /** 시작 버튼들 (예: 혼자 하기 / 둘이 대결) */
   modes: PlayMode[];
+  /** 리듬 게임: 인원에 따른 역할(키 배정) 목록 */
+  rhythmRoles?: (players: number) => RhythmRole[];
   start(container: HTMLElement, input: SetupInputs[K], opts: StartOptions): { destroy(): void };
 }

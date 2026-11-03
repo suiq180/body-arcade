@@ -8,6 +8,12 @@ export function unlockAudio(): void {
   if (audio.state === 'suspended') void audio.resume();
 }
 
+/** 공용 AudioContext (리듬 게임의 음악·메트로놈도 같은 시계를 쓴다) */
+export function audioCtx(): AudioContext {
+  unlockAudio();
+  return audio!;
+}
+
 function tone(freq: number, dur: number, type: OscillatorType = 'triangle', vol = 0.12, delay = 0, slide = 1): void {
   if (!audio) return;
   const t = audio.currentTime + delay;
