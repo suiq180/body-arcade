@@ -8,10 +8,10 @@ import { DEVICES, checkSupport, findDevice, type DeviceId } from '../shared/devi
 import { escapeHtml } from '../shared/html';
 
 /** 장치 준비 화면이 만들어진 장치 (단계별로 늘어남) */
-const SETUP_READY: DeviceId[] = ['camera', 'mic', 'rhythm'];
+const SETUP_READY: DeviceId[] = ['camera', 'mic', 'rhythm', 'arcade'];
 /** 장치 탭 색 */
 const DEVICE_COLORS: Record<DeviceId, string> = {
-  mic: '#ff4d6d', camera: '#ff8a00', xr: '#7c4dff', gaze: '#12b886', rhythm: '#228be6',
+  mic: '#ff4d6d', camera: '#ff8a00', xr: '#7c4dff', gaze: '#12b886', rhythm: '#228be6', arcade: '#e64980',
 };
 const SLIDE_MS = 4500;
 

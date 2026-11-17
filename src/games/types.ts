@@ -4,6 +4,7 @@
 //   index.ts : 실제 게임 (GameModule을 default로 내보냄)
 // 자세한 방법: docs/게임추가가이드.md
 
+import type { ArcadeAdapter } from '../input/arcade';
 import type { CameraHandAdapter } from '../input/camera-hand';
 import type { CameraObjectAdapter } from '../input/camera-object';
 import type { CameraPoseAdapter } from '../input/camera-pose';
@@ -64,6 +65,8 @@ export interface SetupInputs {
   rhythm: RhythmInput;
   /** 🎤 마이크 (src/input/mic.ts, src/setup/mic-setup.ts) */
   mic: MicAdapter;
+  /** 🕹️ 2인용 아케이드 스틱 (src/input/arcade.ts, src/setup/arcade-setup.ts) */
+  arcade: ArcadeAdapter;
 }
 export type SetupKind = keyof SetupInputs;
 
@@ -104,5 +107,7 @@ export interface GameModule<K extends SetupKind = SetupKind> {
   rhythmRoles?: (players: number) => RhythmRole[];
   /** 사물 인식 게임: 준비 화면 설정 (물건 목록, 모델 폴더, 빈 화면 보정 값 등) */
   objectSetup?: ObjectSetupConfig;
+  /** 아케이드 스틱 게임: 준비 화면에 보일 P1·P2 역할 이름 (예: ['P1 · 왼다리', 'P2 · 오른다리']) */
+  arcadeRoles?: (players: number) => [string, string];
   start(container: HTMLElement, input: SetupInputs[K], opts: StartOptions): { destroy(): void };
 }

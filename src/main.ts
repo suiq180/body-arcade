@@ -1,6 +1,6 @@
 // 허브 진입점: 주소의 # 부분으로 화면을 고른다
 //   #/device/<장치ID>  → 허브 (해당 장치 탭)
-//   #/setup/<장치ID>   → 장치 준비 화면 (테스트 모드, camera = 전신 / hand = 손 / mic / rhythm)
+//   #/setup/<장치ID>   → 장치 준비 화면 (테스트 모드, camera = 전신 / hand = 손 / mic / rhythm / arcade)
 //   #/play/<게임ID>    → 게임 소개 → 장치 준비 → 게임 → 결과 (아직 없는 게임은 소개 페이지만)
 
 import './style.css';
@@ -11,6 +11,7 @@ import { mountCameraSetup } from './setup/camera-setup';
 import { mountHandSetup } from './setup/hand-setup';
 import { mountMicSetup } from './setup/mic-setup';
 import { mountRhythmSetup } from './setup/rhythm-setup';
+import { mountArcadeSetup } from './setup/arcade-setup';
 import { mountPlay } from './games/play';
 import { mountGameInfo } from './games/info';
 
@@ -45,6 +46,11 @@ function route(): void {
   }
   if (kind === 'setup' && id === 'mic') {
     cleanup = mountMicSetup(root, { backHref: '#/device/mic' });
+    window.scrollTo(0, 0);
+    return;
+  }
+  if (kind === 'setup' && id === 'arcade') {
+    cleanup = mountArcadeSetup(root, { backHref: '#/device/arcade' });
     window.scrollTo(0, 0);
     return;
   }

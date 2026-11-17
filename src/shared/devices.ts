@@ -1,6 +1,6 @@
 // 장치 분류 (기획서 3장). 한 게임은 하나의 장치 분류에만 속한다.
 
-export type DeviceId = 'mic' | 'camera' | 'xr' | 'gaze' | 'rhythm';
+export type DeviceId = 'mic' | 'camera' | 'xr' | 'gaze' | 'rhythm' | 'arcade';
 
 export interface DeviceInfo {
   id: DeviceId;
@@ -18,6 +18,7 @@ export const DEVICES: DeviceInfo[] = [
   { id: 'xr', icon: '🥽', name: 'VR·MR', hint: '헤드셋을 쓰고 그 공간 안에서 플레이해요', usage: 'VR·MR 헤드셋 + 양손 컨트롤러' },
   { id: 'gaze', icon: '👁️', name: '시선·햅틱', hint: '바라보는 곳으로 조작하고 몸으로 느껴요', usage: '시선 추적 + 햅틱 조끼 (체험판: 웹캠 + 패드 진동)' },
   { id: 'rhythm', icon: '🥁', name: '리듬·악기', hint: '드럼 패드나 건반을 박자에 맞춰 연주해요', usage: 'MIDI 드럼 패드·건반 (게임패드로 대체 가능)' },
+  { id: 'arcade', icon: '🕹️', name: '아케이드 스틱', hint: '2인용 레버와 버튼으로 둘이 한 몸처럼 조종해요', usage: '2인용 아케이드 스틱 (게임패드 2개·키보드로 대체 가능)' },
 ];
 
 export function findDevice(id: string): DeviceInfo | undefined {
@@ -58,5 +59,8 @@ export function checkSupport(id: DeviceId): Support {
       if ('requestMIDIAccess' in navigator) return { ok: true };
       if ('getGamepads' in navigator) return { ok: true, reason: 'MIDI는 크롬·엣지에서만 돼요. 게임패드로 대신할 수 있어요' };
       return { ok: false, reason: UNSUPPORTED };
+    case 'arcade':
+      // 스틱이 키보드로 잡히는 기기도 있어 게임패드 지원이 없어도 할 수 있다
+      return 'getGamepads' in navigator ? { ok: true } : { ok: true, reason: '게임패드는 안 되지만 키보드로 잡히는 스틱이나 키보드로 할 수 있어요' };
   }
 }

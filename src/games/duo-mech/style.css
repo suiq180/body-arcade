@@ -1,0 +1,35 @@
+/* 합체 로봇 조종석 전용 스타일 (dm- 접두어) */
+.dm-hud { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 8px; }
+.dm-meter { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; min-width: 0; }
+.dm-meter > span { white-space: nowrap; }
+.dm-meter b { font-variant-numeric: tabular-nums; min-width: 2.4em; text-align: right; }
+.dm-bar { flex: 1; height: 12px; border-radius: 6px; background: #e9ecef; overflow: hidden; min-width: 40px; }
+.dm-bar i { display: block; height: 100%; width: 100%; transition: width .1s; }
+.dm-bar.hp i { background: linear-gradient(90deg, #ff6b6b, #51cf66); }
+.dm-bar.en i { background: linear-gradient(90deg, #4dabf7, #66e3ff); }
+.dm-bar.boss i { background: linear-gradient(90deg, #862e9c, #e64980); }
+.dm-combo { display: flex; gap: 3px; align-items: center; flex-wrap: wrap; }
+.dm-combo i { width: 12px; height: 12px; border-radius: 3px; background: #dee2e6; }
+.dm-combo i.on { background: #fcc419; box-shadow: 0 0 6px #fcc419; }
+.dm-ready { font-size: 12px; color: #e8590c; animation: dm-blink .5s infinite alternate; }
+@keyframes dm-blink { from { opacity: .4; } to { opacity: 1; } }
+.dm-stage { position: relative; width: 100%; aspect-ratio: 16 / 9; max-height: calc(100vh - 300px); margin: 0 auto; border-radius: 14px; overflow: hidden; background: #1b1e24; }
+.dm-canvas { position: absolute; inset: 0; width: 100% !important; height: 100% !important; display: block; }
+.dm-hint { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); background: rgba(255,255,255,.92); color: #212529; padding: 6px 16px; border-radius: 99px; font-size: 16px; white-space: nowrap; max-width: 94%; overflow: hidden; text-overflow: ellipsis; z-index: 1; }
+.dm-toast { position: absolute; left: 50%; top: 56px; transform: translateX(-50%); background: rgba(13,15,18,.85); color: #fff; padding: 8px 18px; border-radius: 99px; font-weight: 800; font-size: 18px; white-space: nowrap; z-index: 1; }
+.dm-sub { position: absolute; right: 12px; bottom: 10px; color: #ffd43b; font-weight: 800; font-size: 14px; text-shadow: 0 1px 4px #000; z-index: 1; }
+.dm-overlay { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(13,15,18,.6); padding: 12px; z-index: 2; overflow: auto; }
+.dm-box { background: #fff; color: #212529; border-radius: 14px; padding: 16px 20px; text-align: center; max-width: 520px; width: 100%; }
+.dm-box > b { font-size: 22px; }
+.dm-count { font-size: 28px; font-weight: 900; color: #e03131; margin: 4px 0 0; }
+.dm-menu ul { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 6px; text-align: left; }
+.dm-boss-title { display: block; font-size: 24px; margin: 2px 0 4px; }
+.dm-item { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 10px; border: 2px solid #dee2e6; background: #f8f9fa; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.dm-item small { color: #868e96; flex: 1; }
+.dm-item em { font-style: normal; font-weight: 800; color: #e8590c; white-space: nowrap; }
+.dm-item.on { border-color: #ff922b; background: #fff4e6; box-shadow: 0 0 0 3px rgba(255,146,43,.25); }
+.dm-item:disabled { opacity: .5; cursor: not-allowed; }
+.dm-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 10px; }
+.dm-panels > [hidden] { display: none; }
+.dm-hitflash { box-shadow: 0 0 0 3px #ff4d4f, 0 0 18px #ff4d4f; }
+@media (max-width: 760px) { .dm-hud { grid-template-columns: 1fr 1fr; } .dm-panels { grid-template-columns: 1fr; } }

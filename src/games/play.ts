@@ -7,6 +7,7 @@ import { mountHandSetup } from '../setup/hand-setup';
 import { mountObjectSetup } from '../setup/object-setup';
 import { mountRhythmSetup } from '../setup/rhythm-setup';
 import { mountMicSetup } from '../setup/mic-setup';
+import { mountArcadeSetup } from '../setup/arcade-setup';
 import { escapeHtml } from '../shared/html';
 import { renderResults } from '../shared/results';
 import { unlockAudio } from '../shared/sfx';
@@ -72,6 +73,15 @@ const SETUPS: { [K in SetupKind]: SetupEntry<K> } = {
   },
   mic: {
     mount: (root, a) => mountMicSetup(root, { gameTitle: a.gameTitle, backHref: a.backHref, onStart: a.onReady }),
+    stop: (input) => input.stop(),
+  },
+  arcade: {
+    mount: (root, a) => mountArcadeSetup(root, {
+      gameTitle: a.gameTitle,
+      roleNames: a.module.arcadeRoles?.(a.players),
+      backHref: a.backHref,
+      onStart: a.onReady,
+    }),
     stop: (input) => input.stop(),
   },
 };

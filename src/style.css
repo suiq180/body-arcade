@@ -586,3 +586,28 @@ kbd { font-family: inherit; border: 1px solid var(--line); border-bottom-width: 
 /* 휴대폰 세로 화면: 16:9 무대가 너무 작아지는 게임은 세로로 늘린다 */
 @container (max-width: 520px) { .bb-keys { display: none; } .bb-stage { padding-bottom: 3%; } }
 @media (max-width: 600px) { .ds-stage, .bb-stage { aspect-ratio: 4 / 5; max-height: none; } .ds-ship { grid-template-columns: repeat(2, 1fr); } }
+
+/* ── 🕹️ 아케이드 스틱 준비 화면·조종석 표시 (ac-) ── */
+.ac-stage { position: relative; background: #16181d; border-radius: 14px; padding: 18px; min-height: 260px; }
+.ac-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ac-panel { background: #22252c; color: #f1f3f5; border-radius: 12px; padding: 10px 12px; border-top: 4px solid var(--pc); }
+.ac-panel-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
+.ac-panel-head b { color: var(--pc); }
+.ac-conn { font-size: 12px; color: #8ce99a; }
+.ac-conn.bad { color: #ff8787; font-weight: 800; }
+.ac-panel-body { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.ac-lever { width: 64px; height: 64px; border-radius: 50%; background: #0d0f12; position: relative; flex: none; display: grid; place-items: center; }
+.ac-lever i { width: 30px; height: 30px; border-radius: 50%; background: #495057; transition: transform .06s; }
+.ac-lever i.on { background: var(--pc); box-shadow: 0 0 12px var(--pc); }
+.ac-buttons { display: grid; grid-template-columns: repeat(3, auto); gap: 6px; }
+.ac-btn { min-width: 42px; height: 42px; padding: 2px 6px; border-radius: 21px; background: #343a40; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; }
+.ac-btn b { font-size: 14px; }
+.ac-btn small { font-size: 10px; opacity: .85; white-space: nowrap; }
+.ac-btn.on, .ac-start.on { background: var(--pc); color: #111; }
+.ac-start { font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 99px; background: #343a40; }
+.ac-prompt { position: absolute; inset: auto 18px 18px 18px; background: #fff; color: #16181d; border-radius: 12px; padding: 14px 16px; box-shadow: 0 10px 30px rgba(0,0,0,.4); border-left: 6px solid var(--pc, var(--accent)); display: flex; flex-direction: column; gap: 6px; }
+.ac-prompt b { font-size: 18px; }
+.ac-prompt b span { color: var(--pc); }
+.ac-prompt em { font-style: normal; color: var(--ok); font-weight: 800; }
+.ac-map-btns { margin-top: 6px; flex-wrap: wrap; }
+@media (max-width: 760px) { .ac-panels { grid-template-columns: 1fr; } }
