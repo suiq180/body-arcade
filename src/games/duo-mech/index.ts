@@ -10,7 +10,7 @@ import { escapeHtml } from '../../shared/html';
 import { sfx } from '../../shared/sfx';
 import type { GameModule } from '../types';
 import { MechAI } from './ai';
-import { CONFIG, SHOP_ITEMS, SHOP_MAX_LEVEL, type UpgradeId } from './config';
+import { CONFIG, SHOP_ITEMS, SHOP_MAX_LEVEL, STAGE_SELECT, type UpgradeId } from './config';
 import { MechView } from './render3d';
 import {
   BOSSES, NO_ARMS, NO_LEGS, NO_UPGRADES, PATTERN_INFO, MechSim, stageParts, stageScore,
@@ -125,7 +125,15 @@ const game: GameModule<'arcade'> = {
       } else {
         menuItems.push({ label: `역할: <b style="color:${pilotColor(run.pilots.legs)}">${pilotName(run.pilots.legs)} 다리</b> · <b style="color:${pilotColor(run.pilots.arms)}">${pilotName(run.pilots.arms)} 팔</b> ⇄ 바꾸기`, act: swapRoles });
       }
-      if (run.stage > 0) {
+      /** 아직 한 스테이지도 안 싸운 첫 화면 (시작 스테이지 고르기, 상점 없음) */
+      const firstMenu = run.logs.length === 0;
+      if (firstMenu && STAGE_SELECT) {
+        menuItems.push({
+          label: `시작 스테이지: <b>◀ ${run.stage + 1}. ${BOSSES[run.stage].icon} ${escapeHtml(BOSSES[run.stage].name)} ▶</b> <small>누를 때마다 다음 스테이지</small>`,
+          act: () => { run.stage = (run.stage + 1) % BOSSES.length; sfx.tick(); showMenu(); },
+        });
+      }
+      if (!firstMenu) {
         for (const it of SHOP_ITEMS) {
           const lv = run.upgrades[it.id];
           const maxed = lv >= SHOP_MAX_LEVEL;
@@ -141,7 +149,7 @@ const game: GameModule<'arcade'> = {
       menu.innerHTML = `<div class="dm-box dm-menu">
         <small>스테이지 ${run.stage + 1} / ${BOSSES.length}</small>
         <b class="dm-boss-title">${boss.icon} ${escapeHtml(boss.name)}</b>
-        ${run.stage > 0 ? `<p class="small">🔩 부품 <b>${run.parts}</b>개 · 점수 ${run.score.toLocaleString()}</p>` : `<p class="small">P1·P2 중 누가 다리, 누가 팔을 맡을지 정하세요. 스테이지마다 바꿀 수 있어요 (안 바꿔도 돼요).</p>`}
+        ${!firstMenu ? `<p class="small">🔩 부품 <b>${run.parts}</b>개 · 점수 ${run.score.toLocaleString()}</p>` : `<p class="small">P1·P2 중 누가 다리, 누가 팔을 맡을지 정하세요. 스테이지마다 바꿀 수 있어요 (안 바꿔도 돼요).</p>`}
         <ul>${menuItems.map((m, i) => `<li><button type="button" class="dm-item${i === menuCursor ? ' on' : ''}" data-item="${i}" ${m.disabled ? 'disabled' : ''}>${m.label}</button></li>`).join('')}</ul>
         <p class="small muted">레버 ↑↓로 고르고 <b>버튼 1</b>로 선택 (마우스로 눌러도 돼요)</p></div>`;
     }

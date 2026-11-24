@@ -26,6 +26,34 @@ type Events = { input: ArcadeEvent; raw: RawInput; devices: undefined };
 const STORE_KEY = 'arcade:map';
 /** 축이 이 값보다 많이 기울면 그 방향을 누른 것으로 본다 */
 const AXIS_ON = 0.5;
+/**
+ * 햇 스위치 레버: 표준 배치가 아닌 스틱(DirectInput)은 레버 8방향을 축 하나에 숫자로 보낸다.
+ * 놓으면 범위 밖 값(약 3.29), 누르면 -1(↑)부터 1(↖)까지 8칸. 크롬 윈도우에서는 보통 축 9.
+ */
+const HAT_REST = 1.05;
+const HAT_AXIS_GUESS = 9;
+/** 8칸 순서(↑ ↗ → ↘ ↓ ↙ ← ↖)별로 눌린 방향 */
+const HAT_DIRS: string[][] = [['U'], ['U', 'R'], ['R'], ['D', 'R'], ['D'], ['D', 'L'], ['L'], ['U', 'L']];
+
+/** 햇 스위치 값 → 눌린 방향 목록 (U/D/L/R) */
+export function hatDirs(v: number): string[] {
+  if (!Number.isFinite(v) || Math.abs(v) > HAT_REST) return [];
+  return HAT_DIRS[Math.round((v + 1) / (2 / 7)) % 8];
+}
+
+/** 알려진 스틱별 기본 배정 (게임패드 id에 들어 있는 제조사·제품 번호로 찾는다) */
+export interface StickProfile {
+  match: RegExp;
+  /** 버튼 1~6에 해당하는 패드 버튼 번호 */
+  buttons: [number, number, number, number, number, number];
+  start: number;
+  /** true면 번호가 큰 패드가 P1 */
+  p1HighIndex: boolean;
+}
+const STICK_PROFILES: StickProfile[] = [
+  // HORI 2인용 스틱 (0f0d:00ad) — 2026-11-24 실제 기기로 확인
+  { match: /0f0d.*00ad/i, buttons: [1, 3, 0, 2, 4, 6], start: 9, p1HighIndex: true },
+];
 
 const emptyRecord = (): Record<ArcadeControl, string[]> =>
   Object.fromEntries(CONTROLS.map((c) => [c, []])) as unknown as Record<ArcadeControl, string[]>;
@@ -46,18 +74,41 @@ export function keyboardMap(): ArcadeMap {
   return [p1, p2];
 }
 
-/** 게임패드 2개 (표준 배치): 왼쪽 축·십자키 = 레버, 버튼 0~5 = 버튼 1~6, 버튼 9 = START */
-export function gamepadMap(pads: [number, number]): ArcadeMap {
+/** 게임패드 2개 (표준 배치): 왼쪽 축·십자키·햇 스위치 = 레버, 버튼 0~5 = 버튼 1~6, 버튼 9 = START */
+export function gamepadMap(pads: [number, number], buttons: number[] = [0, 1, 2, 3, 4, 5], start = 9): ArcadeMap {
   return pads.map((p) => {
     const r = emptyRecord();
     Object.assign(r, {
-      up: [`gp:${p}:a1-`, `gp:${p}:b12`], down: [`gp:${p}:a1+`, `gp:${p}:b13`],
-      left: [`gp:${p}:a0-`, `gp:${p}:b14`], right: [`gp:${p}:a0+`, `gp:${p}:b15`],
-      b1: [`gp:${p}:b0`], b2: [`gp:${p}:b1`], b3: [`gp:${p}:b2`], b4: [`gp:${p}:b3`], b5: [`gp:${p}:b4`], b6: [`gp:${p}:b5`],
-      start: [`gp:${p}:b9`],
+      up: [`gp:${p}:a1-`, `gp:${p}:b12`, `gp:${p}:hU`], down: [`gp:${p}:a1+`, `gp:${p}:b13`, `gp:${p}:hD`],
+      left: [`gp:${p}:a0-`, `gp:${p}:b14`, `gp:${p}:hL`], right: [`gp:${p}:a0+`, `gp:${p}:b15`, `gp:${p}:hR`],
+      b1: [`gp:${p}:b${buttons[0]}`], b2: [`gp:${p}:b${buttons[1]}`], b3: [`gp:${p}:b${buttons[2]}`],
+      b4: [`gp:${p}:b${buttons[3]}`], b5: [`gp:${p}:b${buttons[4]}`], b6: [`gp:${p}:b${buttons[5]}`],
+      start: [`gp:${p}:b${start}`],
     });
     return r;
   }) as ArcadeMap;
+}
+
+/** 알려진 스틱이 패드 2개로 연결돼 있으면 그 스틱 이름을 돌려준다 */
+export function knownStick(pads: { index: number; id: string }[]): StickProfile | null {
+  return STICK_PROFILES.find((pr) => pads.filter((p) => pr.match.test(p.id)).length >= 2) ?? null;
+}
+
+/** 연결된 패드에 맞는 기본 배정 (알려진 스틱이면 그 스틱의 버튼 배치, 아니면 표준 배치) */
+export function defaultPadMap(pads: { index: number; id: string }[]): ArcadeMap | null {
+  const pr = knownStick(pads);
+  if (pr) {
+    const idx = pads.filter((p) => pr.match.test(p.id)).map((p) => p.index).sort((a, b) => a - b).slice(0, 2);
+    const order = (pr.p1HighIndex ? [idx[1], idx[0]] : idx) as [number, number];
+    return gamepadMap(order, pr.buttons, pr.start);
+  }
+  if (pads.length < 2) return null;
+  return gamepadMap([pads[0].index, pads[1].index]);
+}
+
+/** P1과 P2 배정을 맞바꾼다 */
+export function swapPlayers(map: ArcadeMap): ArcadeMap {
+  return [map[1], map[0]];
 }
 
 /** 배정이 모든 조작에 하나 이상 있는지 */
@@ -71,6 +122,7 @@ export function rawLabel(code: string): string {
   if (kind === 'gp') {
     const pad = `패드${Number(a) + 1}`;
     if (b.startsWith('a')) return `${pad} 축${b.slice(1, -1)}${b.endsWith('-') ? '−' : '+'}`;
+    if (b.startsWith('h')) return `${pad} 레버${({ U: '↑', D: '↓', L: '←', R: '→' } as Record<string, string>)[b.slice(1)] ?? b.slice(1)}`;
     return `${pad} 버튼${b.slice(1)}`;
   }
   return code;
@@ -82,7 +134,7 @@ export class ArcadeAdapter {
   /** 지금 눌린 날것 코드 */
   private rawHeld = new Set<string>();
   private pressTime: [Map<ArcadeControl, number>, Map<ArcadeControl, number>] = [new Map(), new Map()];
-  private padState = new Map<number, { buttons: boolean[]; axes: number[] }>();
+  private padState = new Map<number, { buttons: boolean[]; axes: number[]; hats: Set<number>; hatDirs: Set<string> }>();
   private listeners = new Map<keyof Events, Set<(v: never) => void>>();
   private raf = 0;
   private stopped = true;
@@ -213,17 +265,27 @@ export class ArcadeAdapter {
   pollOnce(now = performance.now()): void {
     for (const g of navigator.getGamepads?.() ?? []) {
       if (!g) continue;
-      const prev = this.padState.get(g.index) ?? { buttons: [], axes: [] };
+      const prev = this.padState.get(g.index)
+        ?? { buttons: [], axes: [], hats: new Set<number>(), hatDirs: new Set<string>() };
+      // 햇 스위치 축 찾기: 범위 밖 값(놓은 상태)이 한 번이라도 보이면 햇으로 본다.
+      // 표준 배치가 아닌 패드의 축 9는 처음부터 햇으로 본다 (레버를 민 채 연결해도 되게).
+      if (g.mapping !== 'standard' && g.axes.length > HAT_AXIS_GUESS) prev.hats.add(HAT_AXIS_GUESS);
+      g.axes.forEach((v, a) => { if (Math.abs(v) > HAT_REST) prev.hats.add(a); });
+
       const buttons = g.buttons.map((b) => b.pressed);
       buttons.forEach((p, b) => { if (p !== !!prev.buttons[b]) this.feedRaw(`gp:${g.index}:b${b}`, p, now); });
-      const axes = g.axes.map((v) => (v > AXIS_ON ? 1 : v < -AXIS_ON ? -1 : 0));
+      const axes = g.axes.map((v, a) => (prev.hats.has(a) ? 0 : v > AXIS_ON ? 1 : v < -AXIS_ON ? -1 : 0));
       axes.forEach((v, a) => {
         const old = prev.axes[a] ?? 0;
         if (v === old) return;
         if (old) this.feedRaw(`gp:${g.index}:a${a}${old > 0 ? '+' : '-'}`, false, now);
         if (v) this.feedRaw(`gp:${g.index}:a${a}${v > 0 ? '+' : '-'}`, true, now);
       });
-      this.padState.set(g.index, { buttons, axes });
+      const dirs = new Set<string>();
+      prev.hats.forEach((a) => hatDirs(g.axes[a]).forEach((d) => dirs.add(d)));
+      prev.hatDirs.forEach((d) => { if (!dirs.has(d)) this.feedRaw(`gp:${g.index}:h${d}`, false, now); });
+      dirs.forEach((d) => { if (!prev.hatDirs.has(d)) this.feedRaw(`gp:${g.index}:h${d}`, true, now); });
+      this.padState.set(g.index, { buttons, axes, hats: prev.hats, hatDirs: dirs });
     }
   }
 

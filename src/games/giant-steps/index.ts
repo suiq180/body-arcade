@@ -8,7 +8,7 @@ import { ARCADE_COLORS, mountArcadePanel } from '../../shared/arcade-panel';
 import { mountDebugPanel } from '../../shared/debug-panel';
 import { sfx } from '../../shared/sfx';
 import type { GameModule } from '../types';
-import { CONFIG, STAR_TIMES_SEC } from './config';
+import { ALL_COURSES_OPEN, CONFIG, STAR_TIMES_SEC } from './config';
 import { GiantView } from './render3d';
 import {
   COURSE_DEFS, FALL_LABEL, GiantSim, OBSTACLE_INFO, makeCourse, scoreFor, starsFor,
@@ -62,7 +62,9 @@ const game: GameModule<'arcade'> = {
       mountArcadePanel($(`[data-el="p${p}"]`), input, p, { title: roles[p], color: ARCADE_COLORS[p], buttonNames: BUTTON_NAMES }));
 
     const progress = loadProgress();
-    let selected = Math.min(progress.unlocked, COURSE_DEFS.length) - 1;
+    /** 지금 고를 수 있는 코스 수 */
+    const openCount = (): number => (ALL_COURSES_OPEN ? COURSE_DEFS.length : progress.unlocked);
+    let selected = Math.min(progress.unlocked, COURSE_DEFS.length) - 1; // 처음엔 마지막으로 연 코스에 커서
     let sim: GiantSim | null = null;
     const view = new GiantView($('[data-el="stage"]'), CONFIG);
     /** 코스 고르기 중에 보여 줄 코스 (거인이 출발선에 서 있음) */
@@ -83,7 +85,7 @@ const game: GameModule<'arcade'> = {
       el.innerHTML = `<div class="gs-box gs-select">
         <b>코스를 고르세요</b>
         <div class="gs-courses">${COURSE_DEFS.map((c, i) => {
-          const locked = i >= progress.unlocked;
+          const locked = i >= openCount();
           const stars = progress.stars[i] ?? 0;
           return `<button type="button" class="gs-course${i === selected ? ' on' : ''}" data-course="${i}" ${locked ? 'disabled' : ''}>
             <span class="gs-course-icon">${locked ? '🔒' : c.theme}</span><b>${i + 1}. ${c.name}</b>
@@ -94,7 +96,7 @@ const game: GameModule<'arcade'> = {
     }
 
     function startCourse(i: number): void {
-      if (i >= progress.unlocked) return;
+      if (i >= openCount()) return;
       selected = i;
       sim = new GiantSim(makeCourse(i), CONFIG);
       $('[data-el="select"]').hidden = true;
@@ -117,7 +119,7 @@ const game: GameModule<'arcade'> = {
       if (!sim) {
         if (!e.down) return;
         if (e.control === 'left' || e.control === 'right') {
-          const max = progress.unlocked - 1;
+          const max = openCount() - 1;
           selected = Math.max(0, Math.min(max, selected + (e.control === 'right' ? 1 : -1)));
           preview = new GiantSim(makeCourse(selected), CONFIG);
           sfx.tick();

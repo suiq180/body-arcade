@@ -88,3 +88,6 @@ export type UpgradeId = (typeof SHOP_ITEMS)[number]['id'];
 export const SHOP_MAX_LEVEL = 3;
 
 export type MechConfig = typeof CONFIG;
+
+/** true면 첫 화면에서 시작 스테이지를 고를 수 있다 (false면 1스테이지부터 순서대로) */
+export const STAGE_SELECT = true;

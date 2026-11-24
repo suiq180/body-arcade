@@ -3,7 +3,7 @@
 // 배정은 브라우저에 저장되어 다음부터는 바로 시작할 수 있다. 화면을 나가면 입력 감시를 멈춘다.
 
 import {
-  ArcadeAdapter, CONTROLS, CONTROL_LABEL, gamepadMap, keyboardMap, mapComplete, rawLabel,
+  ArcadeAdapter, CONTROLS, CONTROL_LABEL, defaultPadMap, keyboardMap, knownStick, mapComplete, rawLabel, swapPlayers,
   type ArcadeControl, type ArcadeMap, type Player,
 } from '../input/arcade';
 import { ARCADE_COLORS, mountArcadePanel } from '../shared/arcade-panel';
@@ -47,6 +47,7 @@ export function mountArcadeSetup(root: HTMLElement, opts: ArcadeSetupOptions): (
                   <button type="button" class="btn ghost small" data-act="assign">직접 배정</button>
                   <button type="button" class="btn ghost small" data-act="pads" hidden>게임패드 2개 기본</button>
                   <button type="button" class="btn ghost small" data-act="keyboard">키보드 기본</button>
+                  <button type="button" class="btn ghost small" data-act="swap" hidden>P1 ↔ P2 바꾸기</button>
                 </div></div></li>
               <li data-step="test"><span class="step-dot"></span><div><b>눌러 보기</b><small>두 사람 모두 레버와 버튼 1을 눌러 보세요. 왼쪽 표시가 켜지면 OK</small></div></li>
             </ol>
@@ -70,7 +71,24 @@ export function mountArcadeSetup(root: HTMLElement, opts: ArcadeSetupOptions): (
   let handedOff = false;
   let raf = 0;
 
+  /** 알려진 스틱이 연결됐는데 지금 배정이 그 스틱을 안 쓰면, 스틱 기본 배정으로 한 번 바꿔 준다 */
+  let autoApplied = false;
+  function autoApplyStick(): void {
+    if (autoApplied || assign) return;
+    const pads = adapter.pads;
+    if (!knownStick(pads)) return;
+    // 이 스틱의 레버는 햇 스위치라서, 레버에 햇 코드(gp:N:hU 등)가 없는 배정은 레버가 안 먹는다
+    const usesHat = adapter.map?.every((r) => r.up.some((code) => /^gp:\d+:h/.test(code)));
+    autoApplied = true;
+    if (mapComplete(adapter.map) && usesHat) return;
+    adapter.setMap(defaultPadMap(pads));
+    prompt.hidden = false;
+    prompt.innerHTML = '<small>아케이드 스틱을 찾았어요</small><b>스틱용 배정을 적용했어요. P1·P2가 반대면 "P1 ↔ P2 바꾸기"를 눌러 주세요</b>';
+    window.setTimeout(() => { if (!assign) prompt.hidden = true; }, 5000);
+  }
+
   function refresh(): void {
+    autoApplyStick();
     const pads = adapter.pads;
     $('[data-el="devText"]').textContent = pads.length
       ? `게임패드 ${pads.length}개: ${pads.map((p) => p.id.replace(/\(.*?\)/g, '').trim()).join(', ')}`
@@ -78,6 +96,7 @@ export function mountArcadeSetup(root: HTMLElement, opts: ArcadeSetupOptions): (
     step('device').className = 'done';
     $('[data-act="pads"]').hidden = pads.length < 2;
     const ok = mapComplete(adapter.map);
+    $('[data-act="swap"]').hidden = !ok || !!assign;
     step('map').className = assign ? 'active' : ok ? 'done' : 'active';
     $('[data-el="mapText"]').textContent = assign ? '배정 중…' : ok ? `저장된 배정을 써요 (${describe(adapter.map!)})` : '아직 배정 전이에요';
     const bothTested = tested.every((s) => s.has('lever') && s.has('b1'));
@@ -149,7 +168,8 @@ export function mountArcadeSetup(root: HTMLElement, opts: ArcadeSetupOptions): (
     const act = (e.target as HTMLElement).closest<HTMLElement>('[data-act]')?.dataset.act;
     if (act === 'assign') startAssign();
     else if (act === 'keyboard') { adapter.setMap(keyboardMap()); refresh(); prompt.hidden = false; prompt.innerHTML = `<small>키보드 기본 배정</small><b>${KEYBOARD_HELP}</b>`; window.setTimeout(() => { if (!assign) prompt.hidden = true; }, 4000); }
-    else if (act === 'pads') { const p = adapter.pads; adapter.setMap(gamepadMap([p[0].index, p[1].index])); refresh(); }
+    else if (act === 'pads') { adapter.setMap(defaultPadMap(adapter.pads)); refresh(); }
+    else if (act === 'swap' && adapter.map) { adapter.setMap(swapPlayers(adapter.map)); tested.forEach((s) => s.clear()); refresh(); }
     else if (act === 'skip') nextAssign();
     else if (act === 'cancel') { assign = null; showPrompt(); refresh(); }
   };

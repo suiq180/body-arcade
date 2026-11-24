@@ -53,3 +53,6 @@ export const CONFIG = {
 export const STAR_TIMES_SEC: [number, number, number][] = [[40, 60, 90], [60, 90, 120], [80, 110, 150], [100, 140, 180], [120, 160, 210]];
 
 export type GiantConfig = typeof CONFIG;
+
+/** true면 코스 5개를 처음부터 모두 고를 수 있다 (false면 별을 받아야 다음 코스가 열림) */
+export const ALL_COURSES_OPEN = true;
