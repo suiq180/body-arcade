@@ -1,6 +1,7 @@
 // 두 다리 거인 — 거인 한 명의 왼다리는 P1, 오른다리는 P2가 맡아 번갈아 걷는 협동 게임 (docs/games/giant-steps.md)
 // 입력: 아케이드 스틱 어댑터 (P1 레버·버튼 = 왼다리, P2 = 오른다리)
 // 흐름: 코스 고르기(스틱으로) → 걷기·장애물 → 결승선 → 결과. 코스를 깨면 다음 코스가 열린다 (브라우저에 저장).
+// 판정은 rules.ts, 3D 그리기는 render3d.ts(코스·장애물) + giant3d.ts(관절 다리 거인).
 
 import type { ArcadeEvent, Player } from '../../input/arcade';
 import { ARCADE_COLORS, mountArcadePanel } from '../../shared/arcade-panel';
@@ -8,19 +9,15 @@ import { mountDebugPanel } from '../../shared/debug-panel';
 import { sfx } from '../../shared/sfx';
 import type { GameModule } from '../types';
 import { CONFIG, STAR_TIMES_SEC } from './config';
+import { GiantView } from './render3d';
 import {
   COURSE_DEFS, FALL_LABEL, GiantSim, OBSTACLE_INFO, makeCourse, scoreFor, starsFor,
-  type Leg, type Obstacle,
+  type Leg,
 } from './rules';
 import './style.css';
 
 const SAVE_KEY = 'giant-steps:progress';
-/** 화면 세로 기준 세계 크기 (px) */
-const VIEW_H = 420;
-const GROUND_Y = 340;
-const LEG_LEN = 120;
 const BUTTON_NAMES = { b1: '팔', b2: '웅크리기', b3: '점프' };
-const THEME: [string, string][] = [['#a5d8ff', '#e7f5ff'], ['#99e9f2', '#e3fafc'], ['#dee2e6', '#f8f9fa'], ['#b2f2bb', '#ebfbee'], ['#d0bfff', '#f3f0ff']];
 
 interface Progress { unlocked: number; stars: number[] }
 
@@ -51,7 +48,6 @@ const game: GameModule<'arcade'> = {
         </div>
         <div class="gs-balance"><span>⬅ 왼쪽</span><div class="gs-gauge"><i data-el="marker"></i></div><span>오른쪽 ➡</span></div>
         <div class="gs-stage br-stage" data-el="stage">
-          <canvas class="stage-canvas" data-el="canvas"></canvas>
           <div class="gs-hint" data-el="hint"></div>
           <div class="gs-toast" data-el="toast" hidden></div>
           <div class="gs-overlay" data-el="select"></div>
@@ -61,8 +57,6 @@ const game: GameModule<'arcade'> = {
         <div class="gs-panels"><div data-el="p0"></div><div data-el="p1"></div></div>
       </div>`;
     const $ = <T extends HTMLElement>(s: string) => container.querySelector<T>(s)!;
-    const canvas = $<HTMLCanvasElement>('[data-el="canvas"]');
-    const ctx = canvas.getContext('2d')!;
     const roles = game.arcadeRoles!(players);
     const panels = ([0, 1] as Player[]).map((p) =>
       mountArcadePanel($(`[data-el="p${p}"]`), input, p, { title: roles[p], color: ARCADE_COLORS[p], buttonNames: BUTTON_NAMES }));
@@ -70,12 +64,14 @@ const game: GameModule<'arcade'> = {
     const progress = loadProgress();
     let selected = Math.min(progress.unlocked, COURSE_DEFS.length) - 1;
     let sim: GiantSim | null = null;
+    const view = new GiantView($('[data-el="stage"]'), CONFIG);
+    /** 코스 고르기 중에 보여 줄 코스 (거인이 출발선에 서 있음) */
+    let preview = new GiantSim(makeCourse(selected), CONFIG);
     let paused = false;
     let finished = false;
     let raf = 0;
     let last = performance.now();
     let toastUntil = 0;
-    let shakeUntil = 0;
     let warnAt = 0;
     const inputs = [0, 0];
     let nextHintLeg: Leg = 0;
@@ -123,6 +119,7 @@ const game: GameModule<'arcade'> = {
         if (e.control === 'left' || e.control === 'right') {
           const max = progress.unlocked - 1;
           selected = Math.max(0, Math.min(max, selected + (e.control === 'right' ? 1 : -1)));
+          preview = new GiantSim(makeCourse(selected), CONFIG);
           sfx.tick();
           renderSelect();
         } else if (e.control === 'b1') startCourse(selected);
@@ -135,7 +132,7 @@ const game: GameModule<'arcade'> = {
         case 'up': if (e.down) sim.lift(leg, x); else sim.place(leg); break;
         case 'down': if (e.down) sim.place(leg); break;
         case 'left': case 'right': if (e.down) sim.setStride(leg, x); break;
-        case 'b1': if (e.down) sim.arm(leg); break;
+        case 'b1': if (e.down) { sim.arm(leg); view.armWave(leg); } break;
         case 'b2': if (e.down) sim.crouchPress(leg); else sim.crouchRelease(leg); break;
         case 'b3': if (e.down) sim.jumpPress(leg); break;
         default: if (e.down) sim.getUpPress();
@@ -157,11 +154,11 @@ const game: GameModule<'arcade'> = {
     /** 시뮬레이션이 남긴 일(디딤·넘어짐·동시 동작 등)을 화면·소리로 */
     function handleEvents(s: GiantSim): void {
       for (const ev of s.events.splice(0)) {
+        view.event(ev, s);
         switch (ev.type) {
           case 'step': sfx.question(); nextHintLeg = (1 - ev.leg) as Leg; break;
           case 'fall':
             sfx.wrong();
-            shakeUntil = performance.now() + 500;
             $('[data-el="fallWhy"]').textContent = FALL_LABEL[ev.cause];
             if (ev.cause === 'water' || ev.cause === 'pit') toast(`${ev.cause === 'water' ? '💦 풍덩!' : '🕳️ 쿵!'} 체크포인트에서 다시`, 1400);
             break;
@@ -210,141 +207,6 @@ const game: GameModule<'arcade'> = {
       });
     }
 
-    // ── 그리기 ──
-    function draw(s: GiantSim | null, now: number): void {
-      const r = canvas.getBoundingClientRect();
-      const dpr = Math.min(2, devicePixelRatio || 1);
-      const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
-      if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; }
-      const k = H / VIEW_H;
-      const viewW = W / k;
-      const ci = s?.course.index ?? selected;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      const sky = ctx.createLinearGradient(0, 0, 0, H);
-      sky.addColorStop(0, THEME[ci][0]); sky.addColorStop(1, THEME[ci][1]);
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, W, H);
-      const shake = now < shakeUntil ? (Math.random() - 0.5) * 10 : 0;
-      const camX = s ? s.bodyX - viewW * 0.35 : 0;
-      ctx.setTransform(k, 0, 0, k, -camX * k + shake * k, 0);
-
-      // 땅
-      ctx.fillStyle = '#8d6e4a';
-      ctx.fillRect(camX - 50, GROUND_Y, viewW + 100, VIEW_H - GROUND_Y);
-      ctx.fillStyle = '#69db7c';
-      ctx.fillRect(camX - 50, GROUND_Y, viewW + 100, 8);
-      if (s) {
-        s.course.obstacles.forEach((o) => drawObstacle(o, now, s));
-        s.course.checkpoints.slice(1).forEach((x) => flag(x, x <= s.checkpoint ? '#40c057' : '#adb5bd'));
-        finishFlag(s.course.length);
-        drawGiant(s);
-      }
-    }
-
-    function flag(x: number, color: string): void {
-      ctx.strokeStyle = '#495057'; ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(x, GROUND_Y); ctx.lineTo(x, GROUND_Y - 70); ctx.stroke();
-      ctx.fillStyle = color;
-      ctx.beginPath(); ctx.moveTo(x, GROUND_Y - 70); ctx.lineTo(x + 30, GROUND_Y - 60); ctx.lineTo(x, GROUND_Y - 50); ctx.fill();
-    }
-
-    function finishFlag(x: number): void {
-      for (let i = 0; i < 6; i++) for (let j = 0; j < 2; j++) {
-        ctx.fillStyle = (i + j) % 2 ? '#212529' : '#fff';
-        ctx.fillRect(x + j * 14, GROUND_Y - 120 + i * 14, 14, 14);
-      }
-      ctx.fillStyle = '#495057'; ctx.fillRect(x - 4, GROUND_Y - 120, 4, 120);
-    }
-
-    function drawObstacle(o: Obstacle, now: number, s: GiantSim): void {
-      const w = o.b - o.a;
-      switch (o.kind) {
-        case 'stones':
-          ctx.fillStyle = '#4dabf7'; ctx.fillRect(o.a, GROUND_Y, w, VIEW_H - GROUND_Y);
-          ctx.fillStyle = 'rgba(255,255,255,.35)';
-          for (let x = o.a + ((now / 20) % 40); x < o.b; x += 40) ctx.fillRect(x, GROUND_Y + 14, 18, 3);
-          ctx.fillStyle = '#868e96';
-          o.stones!.forEach((x) => { ctx.beginPath(); ctx.ellipse(x, GROUND_Y + 4, 26, 10, 0, 0, Math.PI * 2); ctx.fill(); });
-          break;
-        case 'ice':
-          ctx.fillStyle = '#d0ebff'; ctx.fillRect(o.a, GROUND_Y - 4, w, 14);
-          ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
-          for (let x = o.a + 20; x < o.b; x += 60) { ctx.beginPath(); ctx.moveTo(x, GROUND_Y + 2); ctx.lineTo(x + 24, GROUND_Y - 2); ctx.stroke(); }
-          break;
-        case 'wind': {
-          ctx.strokeStyle = 'rgba(73,80,87,.45)'; ctx.lineWidth = 3;
-          const d = o.dir ?? 1;
-          for (let i = 0; i < 7; i++) {
-            const y = GROUND_Y - 40 - i * 38;
-            const x = o.a + (((now / 4) * d + i * 67) % w + w) % w;
-            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + 50 * d, y); ctx.stroke();
-          }
-          ctx.font = '28px system-ui'; ctx.fillText(d > 0 ? '🌬️ →' : '← 🌬️', o.a + w / 2 - 30, GROUND_Y - 290);
-          break;
-        }
-        case 'branch':
-          ctx.fillStyle = '#5c3d1e'; ctx.fillRect(o.a, GROUND_Y - 212, w, 16);
-          ctx.font = '26px system-ui';
-          for (let x = o.a; x < o.b; x += 40) ctx.fillText('🌿', x, GROUND_Y - 186);
-          ctx.fillStyle = '#5c3d1e'; ctx.fillRect(o.b, GROUND_Y - 212, 18, 212);
-          break;
-        case 'pit':
-          ctx.fillStyle = '#212529'; ctx.fillRect(o.a, GROUND_Y, w, VIEW_H - GROUND_Y);
-          break;
-        case 'seesaw': {
-          const mid = (o.a + o.b) / 2;
-          const on = s.bodyX >= o.a && s.bodyX <= o.b;
-          const tilt = on ? (s.bodyX < mid ? 0.05 : -0.05) : 0;
-          ctx.save(); ctx.translate(mid, GROUND_Y); ctx.rotate(tilt);
-          ctx.fillStyle = '#b08968'; ctx.fillRect(-w / 2, -10, w, 12);
-          ctx.restore();
-          ctx.fillStyle = '#7f5539';
-          ctx.beginPath(); ctx.moveTo(mid - 20, GROUND_Y + 30); ctx.lineTo(mid + 20, GROUND_Y + 30); ctx.lineTo(mid, GROUND_Y); ctx.fill();
-          break;
-        }
-      }
-    }
-
-    function drawGiant(s: GiantSim): void {
-      const crouchK = s.crouch ? 0.65 : 1;
-      const fallen = s.state === 'fallen';
-      const bx = s.bodyX;
-      const lift = s.jumpHeight * 90;
-      const hipY = GROUND_Y - LEG_LEN * crouchK - lift;
-      const lean = fallen ? (s.balance < 0 ? -1.2 : 1.2) : s.balance * 0.5;
-      // 다리 (P1 주황 왼다리, P2 청록 오른다리) — 들고 있는 다리는 빛남
-      ([0, 1] as Leg[]).forEach((leg) => {
-        const l = s.legs[leg];
-        const footY = (fallen ? GROUND_Y : GROUND_Y - s.liftAmount(leg) * CONFIG.liftHeight) - lift;
-        const footX = fallen ? bx + (leg ? 30 : -30) : l.x;
-        ctx.strokeStyle = ARCADE_COLORS[leg];
-        ctx.lineWidth = 18; ctx.lineCap = 'round';
-        if (l.lifted) { ctx.shadowColor = ARCADE_COLORS[leg]; ctx.shadowBlur = 18; }
-        ctx.beginPath(); ctx.moveTo(bx + (leg ? 12 : -12), fallen ? GROUND_Y - 20 : hipY); ctx.lineTo(footX, footY - 6); ctx.stroke();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#343a40';
-        ctx.fillRect(footX - 12, footY - 10, 30, 10);
-      });
-      // 몸·머리·팔 (균형만큼 기울어짐)
-      ctx.save();
-      ctx.translate(bx, fallen ? GROUND_Y - 20 : hipY);
-      ctx.rotate(lean);
-      ctx.fillStyle = '#868e96';
-      ctx.beginPath(); ctx.roundRect(-36, -110 * crouchK, 72, 110 * crouchK, 14); ctx.fill();
-      const armSwing = Math.sin(s.time / 120) * 0.3 * Math.abs(s.balance);
-      ([[-1, 0], [1, 1]] as const).forEach(([side, leg]) => {
-        ctx.strokeStyle = ARCADE_COLORS[leg]; ctx.lineWidth = 12;
-        ctx.beginPath(); ctx.moveTo(side * 36, -96 * crouchK); ctx.lineTo(side * (60 + armSwing * 40), -40 * crouchK + armSwing * 30 * side); ctx.stroke();
-      });
-      ctx.fillStyle = '#ffd8a8';
-      ctx.beginPath(); ctx.arc(0, -110 * crouchK - 26, 26, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#212529';
-      ctx.font = '22px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(fallen ? '😵' : Math.abs(s.balance) > 0.6 ? '😰' : s.crouch ? '😤' : '🙂', 0, -110 * crouchK - 26);
-      ctx.restore();
-      ctx.textAlign = 'start'; ctx.textBaseline = 'alphabetic';
-    }
-
     function hud(s: GiantSim): void {
       $('[data-el="time"]').textContent = (s.time / 1000).toFixed(1);
       $('[data-el="falls"]').textContent = String(s.falls.length);
@@ -385,15 +247,16 @@ const game: GameModule<'arcade'> = {
         handleEvents(sim);
       }
       if (finished) return;
-      if (sim) hud(sim);
-      draw(sim, now);
+      if (sim) { hud(sim); view.render(sim); } else view.renderPreview(preview);
       panels.forEach((u) => u());
       if (now > toastUntil) $('[data-el="toast"]').hidden = true;
     }
 
     renderSelect();
+    const onResize = () => view.resize();
+    window.addEventListener('resize', onResize);
     const offDebug = mountDebugPanel(container, CONFIG, '두 다리 거인');
-    (window as unknown as { __giant?: unknown }).__giant = { input, get sim() { return sim; }, startCourse };
+    (window as unknown as { __giant?: unknown }).__giant = { input, get sim() { return sim; }, view, startCourse };
     raf = requestAnimationFrame(tick);
 
     return {
@@ -402,6 +265,8 @@ const game: GameModule<'arcade'> = {
         cancelAnimationFrame(raf);
         offInput();
         offDebug();
+        window.removeEventListener('resize', onResize);
+        view.dispose();
         container.innerHTML = '';
       },
     };

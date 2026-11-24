@@ -362,7 +362,7 @@ const game: GameModule<'arcade'> = {
     const offDebug = mountDebugPanel(container, CONFIG, '합체 로봇 조종석');
     mountPanels();
     showMenu();
-    (window as unknown as { __mech?: unknown }).__mech = { input, run, get sim() { return sim; }, startStage, showMenu, legsInput, armsInput, NO_LEGS, NO_ARMS };
+    (window as unknown as { __mech?: unknown }).__mech = { input, run, get sim() { return sim; }, get view() { return view; }, startStage, showMenu, legsInput, armsInput, NO_LEGS, NO_ARMS };
     raf = requestAnimationFrame(tick);
 
     return {
